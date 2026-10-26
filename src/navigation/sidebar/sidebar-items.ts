@@ -266,6 +266,49 @@ export const sidebarItems: NavGroup[] = [
         ],
       },
       {
+        id: "reservations",
+        title: "Reservas",
+        icon: CalendarDays,
+        subItems: [
+          {
+            id: "reservations-all",
+            title: "Todas as reservas",
+            url: "/dashboard/reservas",
+            icon: ClipboardList,
+          },
+          {
+            id: "reservations-pending",
+            title: "Pendentes",
+            url: "/dashboard/reservas/pendentes",
+            icon: CalendarClock,
+          },
+          {
+            id: "reservations-confirmed",
+            title: "Confirmadas",
+            url: "/dashboard/reservas/confirmadas",
+            icon: ClipboardCheck,
+          },
+          {
+            id: "reservations-cancellations",
+            title: "Cancelamentos",
+            url: "/dashboard/reservas/cancelamentos",
+            icon: History,
+          },
+          {
+            id: "reservations-conflicts",
+            title: "Conflitos e incidentes",
+            url: "/dashboard/reservas/conflitos",
+            icon: TriangleAlert,
+          },
+          {
+            id: "reservations-calendar",
+            title: "Calendário",
+            url: "/dashboard/reservas/calendario",
+            icon: Calendar,
+          },
+        ],
+      },
+      {
         id: "players",
         title: "Jogadores",
         url: "/dashboard/players",
