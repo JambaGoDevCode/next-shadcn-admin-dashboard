@@ -6,6 +6,9 @@ import { AppSidebar } from "@/app/(main)/dashboard/_components/sidebar/app-sideb
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { users } from "@/data/users";
+import { getUserById } from "@/lib/api/admin";
+import { getProfile } from "@/lib/api/auth";
+import { getSessionTokens } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 import { getPreference } from "@/server/server-actions";
 
@@ -23,6 +26,18 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
     getPreference("sidebar_collapsible"),
   ]);
 
+  let sidebarUser: { name: string; email: string; avatar: string } | null = null;
+  const { accessToken } = await getSessionTokens();
+  if (accessToken) {
+    try {
+      const me = await getProfile(accessToken);
+      const full = await getUserById(accessToken, me.userId);
+      sidebarUser = { name: full.name, email: full.email, avatar: me.avatar ?? "" };
+    } catch {
+      // Falls back to the template's placeholder user.
+    }
+  }
+
   return (
     <SidebarProvider
       defaultOpen={defaultOpen}
@@ -32,7 +47,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant={variant} collapsible={collapsible} />
+      <AppSidebar user={sidebarUser ?? undefined} variant={variant} collapsible={collapsible} />
       <SidebarInset
         className={cn(
           "[html[data-content-layout=centered]_&>*]:mx-auto",

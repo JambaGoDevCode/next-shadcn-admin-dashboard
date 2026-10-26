@@ -1,3 +1,9 @@
+"use client";
+
+import * as React from "react";
+
+import { useRouter } from "next/navigation";
+
 import { Ellipsis, FileDown, FileUp, RefreshCw, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,50 +18,69 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function AnalyticsToolbar() {
+const RANGE_OPTIONS = [
+  { value: "last-7-days", label: "Últimos 7 dias" },
+  { value: "last-4-weeks", label: "Últimas 4 semanas" },
+  { value: "last-3-months", label: "Últimos 3 meses" },
+  { value: "year-to-date", label: "Ano até à data" },
+] as const;
+
+export function AnalyticsToolbar({ current }: { current: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+
   return (
-    <div className="flex items-center gap-2">
-      <Select defaultValue="last-4-weeks">
-        <SelectTrigger className="w-34">
-          <SelectValue placeholder="Select range" />
+    <div className="flex items-center gap-2" aria-busy={pending}>
+      <Select
+        value={current}
+        onValueChange={(value) => {
+          if (value === current) return;
+          startTransition(() => {
+            router.replace(`/dashboard/analytics?range=${value}`, { scroll: false });
+          });
+        }}
+      >
+        <SelectTrigger className={pending ? "w-34 opacity-70" : "w-34"}>
+          <SelectValue placeholder="Selecionar período" />
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectItem value="last-7-days">Last 7 days</SelectItem>
-            <SelectItem value="last-4-weeks">Last 4 weeks</SelectItem>
-            <SelectItem value="last-3-months">Last 3 months</SelectItem>
-            <SelectItem value="year-to-date">Year to date</SelectItem>
+            {RANGE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
           </SelectGroup>
         </SelectContent>
       </Select>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="outline" aria-label="More analytics actions">
+          <Button size="icon" variant="outline" aria-label="Mais ações de análise">
             <Ellipsis />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuGroup>
-            <DropdownMenuLabel>Analytics actions</DropdownMenuLabel>
+            <DropdownMenuLabel>Ações de análise</DropdownMenuLabel>
             <DropdownMenuItem>
               <FileDown />
-              Export report
+              Exportar relatório
             </DropdownMenuItem>
             <DropdownMenuItem>
               <FileUp />
-              Import data
+              Importar dados
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Share2 />
-              Share dashboard
+              Partilhar painel
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => router.refresh()}>
               <RefreshCw />
-              Refresh metrics
+              Atualizar métricas
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

@@ -6,11 +6,12 @@ import { Bar, BarChart, CartesianGrid, LabelList, type LabelProps, XAxis, YAxis 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { AnalyticsAssets } from "@/lib/api/types";
 
 const chartConfig = {
   visitors: {
     color: "var(--chart-1)",
-    label: "Visitors",
+    label: "Registos",
   },
 } satisfies ChartConfig;
 
@@ -20,29 +21,24 @@ type TrafficSourceDatum = {
   visitors: number;
 };
 
-const sourcesData: TrafficSourceDatum[] = [
-  { label: "89.4k", source: "Organic Search", visitors: 89_400 },
-  { label: "55.2k", source: "Direct", visitors: 55_200 },
-  { label: "38.1k", source: "Social", visitors: 38_100 },
-  { label: "30.4k", source: "Referral", visitors: 30_400 },
-  { label: "22.7k", source: "Paid", visitors: 22_700 },
-];
+const numberFormatter = new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 0 });
 
-const campaignsData: TrafficSourceDatum[] = [
-  { label: "16.8k", source: "Spring Launch", visitors: 16_800 },
-  { label: "12.0k", source: "Newsletter", visitors: 12_000 },
-  { label: "7.7k", source: "Retargeting", visitors: 7700 },
-  { label: "5.9k", source: "Brand Search", visitors: 5900 },
-  { label: "4.3k", source: "Partners", visitors: 4300 },
-];
-
-const referrersData: TrafficSourceDatum[] = [
-  { label: "18.4k", source: "Google", visitors: 18_400 },
-  { label: "8.9k", source: "LinkedIn", visitors: 8900 },
-  { label: "5.7k", source: "Product Hunt", visitors: 5700 },
-  { label: "4.8k", source: "GitHub", visitors: 4800 },
-  { label: "3.6k", source: "Medium", visitors: 3600 },
-];
+const PROFILE_LABELS: Record<string, string> = {
+  ADMIN: "Administrador",
+  FIELD_OWNER: "Dono de quadra",
+  MODERATOR: "Moderador",
+  ORGANIZER: "Organizador",
+  PLATFORM_MANAGER: "Gestor da plataforma",
+  PLAYER: "Jogador",
+  REGULAR: "Regular",
+  REFEREE: "Árbitro",
+  STAFF: "Equipa técnica",
+  SUPPORT: "Suporte",
+  SUPER_ADMIN: "Super administrador",
+  TEAM_MANAGER: "Gerente de equipa",
+  TEAM_OWNER: "Dono de equipa",
+  USER: "Usuário",
+};
 
 function renderValueLabel(props: LabelProps) {
   const { height, value, y } = props;
@@ -63,6 +59,14 @@ function renderValueLabel(props: LabelProps) {
 }
 
 function TrafficSourceBarChart({ data }: { data: TrafficSourceDatum[] }) {
+  if (data.length === 0 || data.every((item) => item.visitors === 0)) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
+        Sem registos para exibir.
+      </div>
+    );
+  }
+
   return (
     <ChartContainer config={chartConfig} className="h-64 w-full">
       <BarChart
@@ -87,41 +91,74 @@ function TrafficSourceBarChart({ data }: { data: TrafficSourceDatum[] }) {
   );
 }
 
-export function TopTrafficSources() {
+interface TopTrafficSourcesProps {
+  data: AnalyticsAssets | null;
+  failed: boolean;
+}
+
+export function TopTrafficSources({ data, failed }: TopTrafficSourcesProps) {
+  const resourcesData: TrafficSourceDatum[] = data
+    ? [
+        { label: numberFormatter.format(data.totals.fields), source: "Campos", visitors: data.totals.fields },
+        { label: numberFormatter.format(data.totals.teams), source: "Equipas", visitors: data.totals.teams },
+        { label: numberFormatter.format(data.totals.players), source: "Jogadores", visitors: data.totals.players },
+      ]
+    : [];
+
+  const citiesData: TrafficSourceDatum[] = (data?.byCity ?? []).map((entry) => ({
+    label: numberFormatter.format(entry.total),
+    source: entry.city,
+    visitors: entry.total,
+  }));
+
+  const profilesData: TrafficSourceDatum[] = (data?.byProfile ?? []).map((entry) => ({
+    label: numberFormatter.format(entry.count),
+    source: PROFILE_LABELS[entry.type] ?? entry.type,
+    visitors: entry.count,
+  }));
+
   return (
     <Card className="h-full gap-2">
       <CardHeader>
-        <CardTitle className="font-normal">Traffic Sources</CardTitle>
+        <CardTitle className="font-normal">Campos, Equipas e Jogadores</CardTitle>
         <CardAction>
           <Ellipsis className="size-4" />
         </CardAction>
       </CardHeader>
 
       <CardContent className="px-0">
-        <Tabs defaultValue="sources" className="flex flex-col gap-3">
-          <TabsList className="w-full justify-start border-b px-2.5" variant="line">
-            <TabsTrigger className="flex-none font-normal" value="sources">
-              Sources
-            </TabsTrigger>
-            <TabsTrigger className="flex-none font-normal" value="campaigns">
-              Campaigns
-            </TabsTrigger>
-            <TabsTrigger className="flex-none font-normal" value="referrers">
-              Referrers
-            </TabsTrigger>
-          </TabsList>
+        {failed ? (
+          <div className="flex h-64 flex-col items-center justify-center gap-2 px-4 text-center">
+            <p className="font-medium text-red-700 text-sm dark:text-red-300">Não foi possível carregar os recursos.</p>
+            <p className="text-red-700/80 text-xs dark:text-red-300/80">Verifique se a API está em execução.</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="resources" className="flex flex-col gap-3">
+            <TabsList className="w-full justify-start border-b px-2.5" variant="line">
+              <TabsTrigger className="flex-none font-normal" value="resources">
+                Recursos
+              </TabsTrigger>
+              <TabsTrigger className="flex-none font-normal" value="cities">
+                Cidades
+              </TabsTrigger>
+              <TabsTrigger className="flex-none font-normal" value="profiles">
+                Perfis
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="sources" className="px-4">
-            <TrafficSourceBarChart data={sourcesData} />
-          </TabsContent>
+            <TabsContent value="resources" className="px-4">
+              <TrafficSourceBarChart data={resourcesData} />
+            </TabsContent>
 
-          <TabsContent value="campaigns" className="px-4">
-            <TrafficSourceBarChart data={campaignsData} />
-          </TabsContent>
-          <TabsContent value="referrers" className="px-4">
-            <TrafficSourceBarChart data={referrersData} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="cities" className="px-4">
+              <TrafficSourceBarChart data={citiesData} />
+            </TabsContent>
+
+            <TabsContent value="profiles" className="px-4">
+              <TrafficSourceBarChart data={profilesData} />
+            </TabsContent>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   );

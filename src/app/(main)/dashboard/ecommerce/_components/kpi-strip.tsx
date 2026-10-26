@@ -1,91 +1,104 @@
 "use client";
 
-import { format, parse } from "date-fns";
 import { ArrowUpRight, DollarSign, PackageCheck, ReceiptText, RotateCcw, ShoppingBag, Users } from "lucide-react";
 import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
 
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-
-const revenueBucketRanges = ["01-05", "06-10", "11-15", "16-20", "21-25", "26-31"] as const;
-const profitMultipliers = [0.24, 0.28, 0.26] as const;
-
-const revenueBucketValues = [
-  [4820, 5150, 5060, 5520, 5990, 6880],
-  [5140, 5360, 5520, 5860, 6120, 6720],
-  [4920, 4680, 5150, 5360, 5720, 6150],
-  [5480, 5920, 5660, 6180, 6340, 6660],
-  [5840, 6220, 6480, 6110, 6680, 7230],
-  [6280, 6740, 6960, 7120, 6780, 7240],
-  [6820, 7240, 7680, 7410, 7920, 7810],
-  [6040, 6420, 6150, 6860, 7080, 7090],
-  [5860, 6120, 6340, 6080, 6620, 6900],
-  [6520, 6840, 7060, 7420, 7160, 8280],
-  [6980, 7320, 7640, 7160, 8040, 8620],
-  [6900, 7400, 8100, 8600, 8200, 9360],
-] as const;
-
-const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
-
-function getRollingRevenueBuckets() {
-  const currentMonth = new Date();
-  currentMonth.setDate(1);
-
-  return revenueBucketValues.map((values, index) => {
-    const monthDate = new Date(currentMonth);
-    monthDate.setMonth(currentMonth.getMonth() - (revenueBucketValues.length - 1 - index));
-
-    return {
-      month: `${monthFormatter.format(monthDate)} ${String(monthDate.getFullYear()).slice(-2)}`,
-      values,
-    };
-  });
-}
-
-const revenueOverviewData = getRollingRevenueBuckets().flatMap(({ month, values }) =>
-  values.map((revenue, index) => ({
-    period: `${month} ${revenueBucketRanges[index]}`,
-    profit: Math.round(revenue * profitMultipliers[index % profitMultipliers.length]),
-    revenue,
-  })),
-);
+import type { StoreOverview, StoreOverviewPeriodPoint } from "@/lib/api/types";
+import { formatKz } from "@/lib/format";
 
 const revenueOverviewConfig = {
   revenue: {
-    label: "Revenue",
+    label: "Receita",
     color: "var(--foreground)",
   },
-  profit: {
-    label: "Profit",
+  orders: {
+    label: "Encomendas",
     color: "var(--muted-foreground)",
   },
 } satisfies ChartConfig;
 
-function formatMonthTick(value: string) {
-  const parts = value.split(" ");
-  const range = parts.at(-1);
-  const month = parts.slice(0, -1).join(" ");
-
-  return range === "11-15" ? month : "";
+function sumPeriod(
+  points: StoreOverviewPeriodPoint[],
+  key: keyof Pick<StoreOverviewPeriodPoint, "revenue" | "orders" | "units" | "cancelled">,
+): number {
+  return points.reduce((total, point) => total + point[key], 0);
 }
 
-function formatTooltipLabel(value: string) {
-  const parts = value.split(" ");
-  const range = parts.at(-1);
-  const month = parse(parts.slice(0, -1).join(" "), "MMM yy", new Date());
-  const [start, end] = String(range).split("-");
-  const lastDayOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const startDate = new Date(month.getFullYear(), month.getMonth(), Number(start));
-  const endDate = new Date(month.getFullYear(), month.getMonth(), Math.min(Number(end), lastDayOfMonth));
-
-  return `${format(month, "MMM")} ${format(startDate, "do")} - ${format(endDate, "do")}, ${format(month, "yyyy")}`;
+/** % de variação entre a 2.ª e a 1.ª metade do período (null quando não há base de comparação). */
+function percentChange(current: number, previous: number): number | null {
+  if (previous <= 0) return null;
+  return ((current - previous) / previous) * 100;
 }
 
-function formatCurrencyTooltipValue(value: unknown) {
-  return typeof value === "number" ? `$${value.toLocaleString()}` : String(value ?? "");
+function formatPeriodLabel(date: string): string {
+  const [year, month, day] = date.split("-");
+  return `${day}/${month}`;
 }
 
-export function KpiStrip() {
+function formatTooltipValue(name: unknown, value: unknown): string {
+  if (typeof value !== "number") return String(value ?? "");
+  return name === "Receita" ? formatKz(value) : value.toLocaleString("pt-PT");
+}
+
+function ChangeIndicator({
+  change,
+  fallback,
+  inverted = false,
+}: {
+  change: number | null;
+  fallback: string;
+  inverted?: boolean;
+}) {
+  if (change === null || !Number.isFinite(change)) {
+    return <div className="text-muted-foreground text-sm">{fallback}</div>;
+  }
+
+  const positive = change >= 0;
+  const good = inverted ? !positive : positive;
+
+  return (
+    <div className="text-sm">
+      <span className={good ? "text-green-700 dark:text-green-300" : "text-destructive"}>
+        {positive ? "+" : ""}
+        {change.toFixed(1)}%
+      </span>
+      <span className="text-muted-foreground"> vs. período anterior</span>
+    </div>
+  );
+}
+
+type KpiStripProps = {
+  overview: StoreOverview;
+};
+
+export function KpiStrip({ overview }: KpiStripProps) {
+  const points = overview.revenue.byPeriod;
+  const half = Math.floor(points.length / 2);
+  const previous = points.slice(0, half);
+  const current = points.slice(half);
+
+  const revenueChange = percentChange(sumPeriod(current, "revenue"), sumPeriod(previous, "revenue"));
+  const ordersChange = percentChange(sumPeriod(current, "orders"), sumPeriod(previous, "orders"));
+  const cancelledChange = percentChange(sumPeriod(current, "cancelled"), sumPeriod(previous, "cancelled"));
+  const previousOrders = sumPeriod(previous, "orders");
+  const currentOrders = sumPeriod(current, "orders");
+  const previousAverage = previousOrders > 0 ? sumPeriod(previous, "revenue") / previousOrders : 0;
+  const currentAverage = currentOrders > 0 ? sumPeriod(current, "revenue") / currentOrders : 0;
+  const averageChange = percentChange(currentAverage, previousAverage);
+
+  const stockPercent =
+    overview.inventory.variants > 0
+      ? Math.round((overview.inventory.inStock / overview.inventory.variants) * 100)
+      : 0;
+
+  const chartData = points.map((point) => ({
+    period: formatPeriodLabel(point.date),
+    revenue: point.revenue,
+    orders: point.orders,
+  }));
+
   return (
     <div className="h-full overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 xl:col-span-12">
       <div>
@@ -93,108 +106,92 @@ export function KpiStrip() {
           <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-3 xl:col-span-5 xl:border-r">
             <Card className="h-full rounded-none border-0 border-border border-b ring-0 md:border-r">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Total Sales</CardTitle>
+                <CardTitle className="font-normal text-sm">Vendas totais</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  $48,560.00
+                  {formatKz(overview.revenue.total)}
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <DollarSign className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-green-700 dark:text-green-300">+15.8%</span>
-                  <span className="text-muted-foreground"> vs last week</span>
-                </div>
+                <ChangeIndicator change={revenueChange} fallback="Receita total do período" />
               </CardContent>
             </Card>
 
             <Card className="h-full rounded-none border-0 border-border border-b ring-0">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Total Orders</CardTitle>
+                <CardTitle className="font-normal text-sm">Total de encomendas</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  379
+                  {overview.orders.total}
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <ShoppingBag className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-green-700 dark:text-green-300">+8.3%</span>
-                  <span className="text-muted-foreground"> vs last week</span>
-                </div>
+                <ChangeIndicator change={ordersChange} fallback="Encomendas registadas" />
               </CardContent>
             </Card>
 
             <Card className="h-full rounded-none border-0 border-border border-b ring-0 md:border-r">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Customer Growth</CardTitle>
+                <CardTitle className="font-normal text-sm">Clientes</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  820
+                  {overview.customers.total}
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <Users className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-green-700 dark:text-green-300">+12.5%</span>
-                  <span className="text-muted-foreground"> vs last month</span>
-                </div>
+                <div className="text-muted-foreground text-sm">Com encomendas registadas</div>
               </CardContent>
             </Card>
 
             <Card className="h-full rounded-none border-0 border-border border-b ring-0">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Average Order</CardTitle>
+                <CardTitle className="font-normal text-sm">Ticket médio</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  $128
+                  {formatKz(overview.orders.averageValue)}
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <ReceiptText className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-destructive">-$4.20</span>
-                  <span className="text-muted-foreground"> vs last week</span>
-                </div>
+                <ChangeIndicator change={averageChange} fallback="Receita média por encomenda" />
               </CardContent>
             </Card>
 
             <Card className="h-full rounded-none border-0 border-border border-b ring-0 md:border-r md:border-b-0">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Return Requests</CardTitle>
+                <CardTitle className="font-normal text-sm">Cancelamentos</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  18
+                  {overview.orders.cancelled}
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <RotateCcw className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-destructive">+0.6%</span>
-                  <span className="text-muted-foreground"> vs last month</span>
-                </div>
+                <ChangeIndicator change={cancelledChange} fallback="Encomendas canceladas" inverted />
               </CardContent>
             </Card>
 
             <Card className="h-full rounded-none border-0 ring-0">
               <CardHeader>
-                <CardTitle className="font-normal text-sm">Stock Accuracy</CardTitle>
+                <CardTitle className="font-normal text-sm">Precisão de stock</CardTitle>
                 <CardDescription className="text-3xl text-foreground tabular-nums leading-none tracking-tight">
-                  97%
+                  {stockPercent}%
                 </CardDescription>
                 <CardAction className="grid size-6 place-items-center rounded-sm bg-muted">
                   <PackageCheck className="size-3 text-foreground" />
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="text-sm">
-                  <span className="text-green-700 dark:text-green-300">+2.4 pts</span>
-                  <span className="text-muted-foreground"> vs last audit</span>
+                <div className="text-muted-foreground text-sm">
+                  {overview.inventory.lowStock} variantas com stock baixo
                 </div>
               </CardContent>
             </Card>
@@ -202,7 +199,7 @@ export function KpiStrip() {
 
           <Card className="h-full rounded-none border-0 ring-0 xl:col-span-7">
             <CardHeader>
-              <CardTitle className="font-normal">Sales Overview</CardTitle>
+              <CardTitle className="font-normal">Resumo de vendas</CardTitle>
               <CardAction>
                 <ArrowUpRight className="size-4" />
               </CardAction>
@@ -212,7 +209,7 @@ export function KpiStrip() {
               <ChartContainer config={revenueOverviewConfig} className="h-74 w-full">
                 <ComposedChart
                   accessibilityLayer
-                  data={revenueOverviewData}
+                  data={chartData}
                   margin={{ bottom: 0, left: 0, right: 0, top: 0 }}
                 >
                   <defs>
@@ -226,7 +223,7 @@ export function KpiStrip() {
                       </feMerge>
                     </filter>
                   </defs>
-                  <CartesianGrid yAxisId="profit" vertical={false} />
+                  <CartesianGrid yAxisId="orders" vertical={false} />
                   <XAxis
                     dataKey="period"
                     axisLine={false}
@@ -236,15 +233,14 @@ export function KpiStrip() {
                     tick={{ fontSize: 10 }}
                     tickLine={false}
                     tickMargin={8}
-                    tickFormatter={(value) => formatMonthTick(String(value))}
                   />
-                  <YAxis yAxisId="revenue" hide domain={[3000, 10_000]} />
-                  <YAxis yAxisId="profit" hide domain={[0, 6000]} />
+                  <YAxis yAxisId="revenue" hide domain={[0, "auto"]} />
+                  <YAxis yAxisId="orders" hide domain={[0, "auto"]} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        className="w-40"
-                        labelFormatter={(value) => formatTooltipLabel(String(value))}
+                        className="w-44"
+                        labelFormatter={(value) => `Dia ${String(value)}`}
                         formatter={(value, name, item) => (
                           <>
                             <div
@@ -256,7 +252,7 @@ export function KpiStrip() {
                             <div className="flex flex-1 items-center justify-between leading-none">
                               <span className="text-muted-foreground">{String(name ?? "")}</span>
                               <span className="font-medium font-mono text-foreground tabular-nums">
-                                {formatCurrencyTooltipValue(value)}
+                                {formatTooltipValue(name, value)}
                               </span>
                             </div>
                           </>
@@ -269,11 +265,11 @@ export function KpiStrip() {
                     }}
                   />
                   <Bar
-                    yAxisId="profit"
+                    yAxisId="orders"
                     barSize={4}
-                    dataKey="profit"
-                    fill="var(--color-profit)"
-                    name="Profit"
+                    dataKey="orders"
+                    fill="var(--color-orders)"
+                    name="Encomendas"
                     opacity={0.18}
                     radius={[6, 6, 0, 0]}
                   />
@@ -282,7 +278,7 @@ export function KpiStrip() {
                     dataKey="revenue"
                     fill="none"
                     filter="url(#sales-line-glow)"
-                    name="Revenue"
+                    name="Receita"
                     stroke="var(--color-revenue)"
                     strokeWidth={1.8}
                     type="linear"

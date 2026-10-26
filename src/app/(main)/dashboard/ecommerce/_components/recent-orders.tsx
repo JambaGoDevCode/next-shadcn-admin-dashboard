@@ -20,17 +20,19 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { dataTableFeatures } from "@/lib/data-table-features";
 
 import { recentOrdersColumns } from "./recent-orders-table/columns";
-import recentOrdersData from "./recent-orders-table/data.json";
 import {
   formatOrderCount,
   formatSelectedOrderCount,
   preventPaginationNavigation,
 } from "./recent-orders-table/formatters";
-import { type OrderFilter, type OrderRow, orderFilters } from "./recent-orders-table/schema";
+import { type OrderFilter, type OrderRow, orderFilterLabels, orderFilters } from "./recent-orders-table/schema";
 
-const recentOrders = recentOrdersData as OrderRow[];
+type RecentOrdersProps = {
+  rows: OrderRow[];
+  error?: string | null;
+};
 
-export function RecentOrders() {
+export function RecentOrders({ rows: recentOrders, error }: RecentOrdersProps) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -76,18 +78,34 @@ export function RecentOrders() {
     return [currentPage - 1, currentPage, currentPage + 1];
   }, [currentPage, pageCount]);
 
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-normal text-muted-foreground text-sm">Encomendas recentes</CardTitle>
+          <CardDescription className="text-destructive text-sm">{error}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid min-h-48 place-items-center rounded-md border border-dashed p-6 text-center text-muted-foreground text-sm">
+            Não foi possível carregar as encomendas.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-normal text-muted-foreground text-sm">Recent Orders</CardTitle>
+        <CardTitle className="font-normal text-muted-foreground text-sm">Encomendas recentes</CardTitle>
         <CardDescription className="text-foreground text-xl tabular-nums leading-none tracking-tight">
           {orderCountDescription}
         </CardDescription>
         <CardAction className="flex items-center gap-1">
-          <Button aria-label="Open orders" size="icon-sm" variant="outline">
+          <Button aria-label="Abrir encomendas" size="icon-sm" variant="outline">
             <ArrowUpRight />
           </Button>
-          <Button aria-label="Download orders" size="icon-sm" variant="outline">
+          <Button aria-label="Baixar encomendas" size="icon-sm" variant="outline">
             <Download />
           </Button>
           <Button size="icon-sm" variant="outline">
@@ -112,7 +130,7 @@ export function RecentOrders() {
           >
             {orderFilters.map((filter) => (
               <ToggleGroupItem key={filter} value={filter}>
-                {filter}
+                {orderFilterLabels[filter]}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -153,7 +171,7 @@ export function RecentOrders() {
               ) : (
                 <TableRow>
                   <TableCell className="h-24 text-center" colSpan={table.getVisibleLeafColumns().length}>
-                    No orders found.
+                    Nenhuma encomenda encontrada.
                   </TableCell>
                 </TableRow>
               )}
@@ -163,7 +181,7 @@ export function RecentOrders() {
 
         <div className="flex items-center justify-between gap-4 px-4 pb-1">
           <p className="text-muted-foreground text-sm">
-            Viewing {visibleOrderCount} out of {orderCount.toLocaleString()} orders
+            A ver {visibleOrderCount} de {orderCount.toLocaleString("pt-PT")} encomendas
           </p>
 
           <Pagination className="mx-0 w-auto justify-end">

@@ -2,20 +2,57 @@ import { Ellipsis } from "lucide-react";
 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { AnalyticsFeatures, FeatureMetric } from "@/lib/api/types";
 
-const pages = [
-  { bounce: "24%", path: "/dashboard", time: "3m 12s", views: "64.2k" },
-  { bounce: "31%", path: "/pricing", time: "2m 08s", views: "41.8k" },
-  { bounce: "18%", path: "/docs/getting-started", time: "4m 44s", views: "28.6k" },
-  { bounce: "22%", path: "/blog/analytics-guide", time: "5m 06s", views: "19.3k" },
-  { bounce: "42%", path: "/contact", time: "1m 18s", views: "8.9k" },
-];
+const FEATURE_LABELS: Record<string, string> = {
+  bookings: "Reservas",
+  matches: "Partidas",
+  matchmaking: "Matchmaking",
+  registrations: "Inscrições",
+  tournaments: "Torneios",
+  payments: "Pagamentos",
+};
 
-export function TopPages() {
+function formatDelta(deltaPct: number | null): { text: string; className: string } {
+  if (deltaPct === null || deltaPct === 0) {
+    return { text: "—", className: "text-muted-foreground" };
+  }
+
+  const up = deltaPct > 0;
+  const text = `${up ? "+" : ""}${deltaPct.toFixed(1).replace(".", ",")}%`;
+
+  return {
+    text,
+    className: up ? "text-green-700 dark:text-green-400" : "text-destructive",
+  };
+}
+
+function FeatureRow({ feature, days }: { feature: FeatureMetric; days: number }) {
+  const delta = formatDelta(feature.deltaPct);
+
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell className="max-w-0 truncate py-4 font-medium">{FEATURE_LABELS[feature.key] ?? feature.key}</TableCell>
+      <TableCell className="text-right tabular-nums" title={`Últimos ${days} dias`}>
+        {feature.current}
+      </TableCell>
+      <TableCell className="text-right text-muted-foreground tabular-nums">{feature.total}</TableCell>
+      <TableCell className={`text-right tabular-nums ${delta.className}`}>{delta.text}</TableCell>
+    </TableRow>
+  );
+}
+
+interface TopPagesProps {
+  data: AnalyticsFeatures | null;
+  days: number;
+  failed: boolean;
+}
+
+export function TopPages({ data, days, failed }: TopPagesProps) {
   return (
     <Card className="h-full gap-2">
       <CardHeader>
-        <CardTitle className="font-normal">Page Performance</CardTitle>
+        <CardTitle className="font-normal">Desempenho das funcionalidades</CardTitle>
         <CardAction>
           <Ellipsis className="size-4" />
         </CardAction>
@@ -26,20 +63,29 @@ export function TopPages() {
           <TableHeader className="[&_tr]:border-border/50">
             <TableRow className="hover:bg-transparent">
               <TableHead className="h-8" />
-              <TableHead className="h-8 w-24 text-right font-normal">Views</TableHead>
-              <TableHead className="h-8 w-24 text-right font-normal">Avg Time</TableHead>
-              <TableHead className="h-8 w-20 text-right font-normal">Bounce</TableHead>
+              <TableHead className="h-8 w-24 text-right font-normal" title={`Ações nos últimos ${days} dias`}>
+                {days} dias
+              </TableHead>
+              <TableHead className="h-8 w-24 text-right font-normal">Total</TableHead>
+              <TableHead className="h-8 w-20 text-right font-normal">Variação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="[&_tr]:border-border/50">
-            {pages.map((page) => (
-              <TableRow className="hover:bg-transparent" key={page.path}>
-                <TableCell className="max-w-0 truncate py-4 font-medium">{page.path}</TableCell>
-                <TableCell className="text-right tabular-nums">{page.views}</TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">{page.time}</TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">{page.bounce}</TableCell>
+            {failed && !data ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground text-sm">
+                  Não foi possível carregar os dados. Verifique se a API está em execução.
+                </TableCell>
               </TableRow>
-            ))}
+            ) : data && data.features.length > 0 ? (
+              data.features.map((feature) => <FeatureRow feature={feature} days={days} key={feature.key} />)
+            ) : (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground text-sm">
+                  Sem dados no período selecionado.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

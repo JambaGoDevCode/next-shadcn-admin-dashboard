@@ -6,75 +6,81 @@ import { Label, Pie, PieChart } from "recharts";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import { Separator } from "@/components/ui/separator";
+import type { StoreOverview } from "@/lib/api/types";
 
-const chartData = [{ month: "current", "in-stock": 760, "low-stock": 320, "out-of-stock": 160 }];
-const totalUnits = chartData[0]["in-stock"] + chartData[0]["low-stock"] + chartData[0]["out-of-stock"];
-const availablePercent = Math.round((chartData[0]["in-stock"] / totalUnits) * 100);
 const gaugeSegmentCount = 32;
-const inStockSegments = Math.round((chartData[0]["in-stock"] / totalUnits) * gaugeSegmentCount);
-const lowStockSegments = Math.round((chartData[0]["low-stock"] / totalUnits) * gaugeSegmentCount);
-
-function getGaugeSegmentStatus(index: number) {
-  if (index < inStockSegments) {
-    return "in-stock";
-  }
-
-  if (index < inStockSegments + lowStockSegments) {
-    return "low-stock";
-  }
-
-  return "out-of-stock";
-}
-
-const gaugeSegments = Array.from({ length: gaugeSegmentCount }, (_, index) => {
-  const status = getGaugeSegmentStatus(index);
-  return {
-    fill: `var(--color-${status})`,
-    id: `segment-${index + 1}`,
-    status,
-    value: 1,
-  };
-});
-const inventorySummary = [
-  {
-    icon: PackageCheck,
-    label: "In stock",
-    value: chartData[0]["in-stock"],
-  },
-  {
-    icon: TriangleAlert,
-    label: "Low stock",
-    value: chartData[0]["low-stock"],
-  },
-  {
-    icon: PackageX,
-    label: "Out",
-    value: chartData[0]["out-of-stock"],
-  },
-] as const;
 
 const chartConfig = {
   "in-stock": {
-    label: "In stock",
+    label: "Em stock",
     color: "var(--chart-2)",
   },
   "low-stock": {
-    label: "Low stock",
+    label: "Stock baixo",
     color: "var(--chart-1)",
   },
   "out-of-stock": {
-    label: "Out of stock",
+    label: "Esgotado",
     color: "var(--destructive)",
   },
 } satisfies ChartConfig;
 
-export function Inventory() {
+type InventoryProps = {
+  inventory: StoreOverview["inventory"];
+};
+
+export function Inventory({ inventory }: InventoryProps) {
+  const totalUnits = inventory.variants;
+  const availablePercent = totalUnits > 0 ? Math.round((inventory.inStock / totalUnits) * 100) : 0;
+  const inStockSegments = Math.round((inventory.inStock / Math.max(1, totalUnits)) * gaugeSegmentCount);
+  const lowStockSegments = Math.round((inventory.lowStock / Math.max(1, totalUnits)) * gaugeSegmentCount);
+
+  function getGaugeSegmentStatus(index: number) {
+    if (index < inStockSegments) {
+      return "in-stock";
+    }
+
+    if (index < inStockSegments + lowStockSegments) {
+      return "low-stock";
+    }
+
+    return "out-of-stock";
+  }
+
+  const gaugeSegments = Array.from({ length: gaugeSegmentCount }, (_, index) => {
+    const status = getGaugeSegmentStatus(index);
+    return {
+      fill: `var(--color-${status})`,
+      id: `segment-${index + 1}`,
+      status,
+      value: 1,
+    };
+  });
+
+  const inventorySummary = [
+    {
+      icon: PackageCheck,
+      label: "Em stock",
+      value: inventory.inStock,
+    },
+    {
+      icon: TriangleAlert,
+      label: "Stock baixo",
+      value: inventory.lowStock,
+    },
+    {
+      icon: PackageX,
+      label: "Esgotado",
+      value: inventory.outOfStock,
+    },
+  ] as const;
+
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="font-normal text-muted-foreground text-sm">Inventory</CardTitle>
+        <CardTitle className="font-normal text-muted-foreground text-sm">Inventário</CardTitle>
         <CardDescription className="text-foreground text-xl tabular-nums leading-none tracking-tight">
-          {availablePercent}% available
+          {availablePercent}% disponíveis
         </CardDescription>
         <CardAction>
           <ArrowUpRight className="size-4" />
@@ -105,12 +111,12 @@ export function Inventory() {
                         <tspan
                           className="fill-foreground font-medium text-2xl tabular-nums"
                           x={viewBox.cx}
-                          y={(viewBox.cy || 0) + 22}
+                          y={(viewBox.cy || 0) - 14}
                         >
                           {availablePercent}%
                         </tspan>
-                        <tspan className="fill-muted-foreground text-xs" x={viewBox.cx} y={(viewBox.cy || 0) + 38}>
-                          Available
+                        <tspan className="fill-muted-foreground text-xs" x={viewBox.cx} y={viewBox.cy || 0}>
+                          Disponível
                         </tspan>
                       </text>
                     );
@@ -130,7 +136,7 @@ export function Inventory() {
               </div>
               <div>
                 <div className="text-muted-foreground text-xs leading-none">{item.label}</div>
-                <div className="font-medium text-sm tabular-nums">{item.value.toLocaleString()}</div>
+                <div className="font-medium text-sm tabular-nums">{item.value.toLocaleString("pt-PT")}</div>
               </div>
             </div>
           ))}

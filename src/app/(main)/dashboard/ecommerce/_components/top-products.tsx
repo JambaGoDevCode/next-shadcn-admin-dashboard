@@ -2,53 +2,36 @@ import { ArrowUpRight } from "lucide-react";
 
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import type { StoreOverviewCategory, StoreOverviewTopProduct } from "@/lib/api/types";
+import { formatKz } from "@/lib/format";
 
-const categories = [
-  {
-    name: "Apparel",
-    share: 44,
-    color: "var(--chart-3)",
-  },
-  {
-    name: "Accessories",
-    share: 32,
-    color: "var(--chart-2)",
-  },
-  {
-    name: "Home",
-    share: 24,
-    color: "var(--chart-1)",
-  },
+const categoryColors = [
+  "var(--chart-3)",
+  "var(--chart-2)",
+  "var(--chart-1)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ] as const;
 
-const products = [
-  {
-    name: "Linen Overshirt",
-    category: "Apparel",
-    share: "31%",
-    sales: "$14,820",
-  },
-  {
-    name: "Everyday Tote",
-    category: "Accessories",
-    share: "24%",
-    sales: "$11,460",
-  },
-  {
-    name: "Ceramic Planter",
-    category: "Home",
-    share: "18%",
-    sales: "$8,930",
-  },
-] as const;
+type TopProductsProps = {
+  products: StoreOverviewTopProduct[];
+  categories: StoreOverviewCategory[];
+};
 
-export function TopProducts() {
+export function TopProducts({ products, categories }: TopProductsProps) {
+  const segments = categories.map((category, index) => ({
+    name: category.name,
+    share: category.share,
+    color: categoryColors[index % categoryColors.length],
+  }));
+  const topShare = products.reduce((total, product) => total + product.share, 0);
+
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="font-normal text-muted-foreground text-sm">Top Products</CardTitle>
+        <CardTitle className="font-normal text-muted-foreground text-sm">Top produtos</CardTitle>
         <CardDescription className="text-foreground text-xl tabular-nums leading-none tracking-tight">
-          73% of sales
+          {products.length > 0 ? `${Math.round(topShare)}% da receita` : "Sem vendas no período"}
         </CardDescription>
         <CardAction>
           <ArrowUpRight className="size-4" />
@@ -57,25 +40,25 @@ export function TopProducts() {
 
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <div aria-label="Sales by category" className="flex h-2 gap-1 overflow-hidden bg-muted" role="img">
-            {categories.map((category) => (
+          <div aria-label="Vendas por categoria" className="flex h-2 gap-1 overflow-hidden bg-muted" role="img">
+            {segments.map((segment) => (
               <div
                 aria-hidden="true"
-                key={category.name}
+                key={segment.name}
                 className="rounded-md"
                 style={{
-                  backgroundColor: category.color,
-                  width: `${category.share}%`,
+                  backgroundColor: segment.color,
+                  width: `${segment.share}%`,
                 }}
               />
             ))}
           </div>
 
           <div className="flex flex-wrap gap-4">
-            {categories.map((category) => (
-              <div className="flex items-center gap-1" key={category.name}>
-                <span aria-hidden="true" className="size-2 rounded-full" style={{ backgroundColor: category.color }} />
-                <span className="text-muted-foreground text-xs">{category.name}</span>
+            {segments.map((segment) => (
+              <div className="flex items-center gap-1" key={segment.name}>
+                <span aria-hidden="true" className="size-2 rounded-full" style={{ backgroundColor: segment.color }} />
+                <span className="text-muted-foreground text-xs">{segment.name}</span>
               </div>
             ))}
           </div>
@@ -84,20 +67,26 @@ export function TopProducts() {
         <Separator />
 
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-3">
-          <div className="text-muted-foreground text-xs">Products</div>
-          <div className="text-muted-foreground text-xs">Share</div>
-          <div className="text-muted-foreground text-xs">Sales</div>
+          <div className="text-muted-foreground text-xs">Produtos</div>
+          <div className="text-muted-foreground text-xs">Partilha</div>
+          <div className="text-muted-foreground text-xs">Vendas</div>
 
-          {products.map((product) => (
-            <div className="contents text-sm" key={product.name}>
-              <div className="min-w-0">
-                <div className="truncate font-medium">{product.name}</div>
-                <div className="text-muted-foreground text-xs">{product.category}</div>
+          {products.length > 0 ? (
+            products.map((product) => (
+              <div className="contents text-sm" key={product.name}>
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{product.name}</div>
+                  <div className="text-muted-foreground text-xs">{product.category ?? "Sem categoria"}</div>
+                </div>
+                <div className="self-center text-muted-foreground tabular-nums">
+                  {Math.round(product.share)}%
+                </div>
+                <div className="self-center font-medium tabular-nums">{formatKz(product.revenue)}</div>
               </div>
-              <div className="self-center text-muted-foreground tabular-nums">{product.share}</div>
-              <div className="self-center font-medium tabular-nums">{product.sales}</div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="col-span-3 text-muted-foreground text-sm">Sem dados de vendas no período.</div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -5,59 +5,34 @@ import { Bar, BarChart, type BarShapeProps, XAxis, YAxis } from "recharts";
 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-
-const realtimeData = [
-  { minute: 1, visitors: 0 },
-  { minute: 2, visitors: 6 },
-  { minute: 3, visitors: 12 },
-  { minute: 4, visitors: 20 },
-  { minute: 5, visitors: 12 },
-  { minute: 6, visitors: 0 },
-  { minute: 7, visitors: 6 },
-  { minute: 8, visitors: 6 },
-  { minute: 9, visitors: 0 },
-  { minute: 10, visitors: 4 },
-  { minute: 11, visitors: 0 },
-  { minute: 12, visitors: 20 },
-  { minute: 13, visitors: 15 },
-  { minute: 14, visitors: 4 },
-  { minute: 15, visitors: 6 },
-  { minute: 16, visitors: 0 },
-  { minute: 17, visitors: 4 },
-  { minute: 18, visitors: 12 },
-  { minute: 19, visitors: 20 },
-  { minute: 20, visitors: 0 },
-  { minute: 21, visitors: 4 },
-  { minute: 22, visitors: 20 },
-  { minute: 23, visitors: 12 },
-  { minute: 24, visitors: 0 },
-  { minute: 25, visitors: 6 },
-  { minute: 26, visitors: 6 },
-  { minute: 27, visitors: 0 },
-  { minute: 28, visitors: 20 },
-  { minute: 29, visitors: 0 },
-  { minute: 30, visitors: 4 },
-];
+import type { TeamsTop, TimeseriesPoint } from "@/lib/api/types";
 
 const chartConfig = {
-  visitors: {
+  matches: {
     color: "var(--chart-3)",
-    label: "Visitors",
+    label: "Partidas",
   },
 } satisfies ChartConfig;
 
+interface RealtimeVisitorsProps {
+  data: TeamsTop | null;
+  points: TimeseriesPoint[];
+  days: number;
+  failed: boolean;
+}
+
 function RealtimeBarShape(props: BarShapeProps) {
   const { height, payload, width, x, y } = props;
-  const barPayload = payload as (typeof realtimeData)[number] | undefined;
+  const barPayload = payload as { period?: string; matches?: number } | undefined;
   const barHeightValue = Number(height);
   const barWidthValue = Number(width);
   const xValue = Number(x);
   const yValue = Number(y);
-  const visitors = barPayload?.visitors ?? 0;
-  const fill = "var(--color-visitors)";
-  const fillOpacity = visitors >= 18 ? 0.95 : 0.4;
-  const baselineFill = visitors === 0 ? "var(--destructive)" : fill;
-  const baselineOpacity = visitors === 0 ? 1 : fillOpacity;
+  const matches = barPayload?.matches ?? 0;
+  const fill = "var(--color-matches)";
+  const fillOpacity = matches > 0 ? 0.85 : 0.4;
+  const baselineFill = matches === 0 ? "var(--muted-foreground)" : fill;
+  const baselineOpacity = matches === 0 ? 0.35 : 1;
   const baselineY = yValue + barHeightValue - 2;
   const barGap = 4;
   const barHeight = Math.max(0, barHeightValue - barGap);
@@ -73,7 +48,7 @@ function RealtimeBarShape(props: BarShapeProps) {
         fill={baselineFill}
         fillOpacity={baselineOpacity}
       />
-      {visitors > 0 && barHeight > 0 ? (
+      {matches > 0 && barHeight > 0 ? (
         <rect
           x={xValue}
           y={yValue}
@@ -88,11 +63,29 @@ function RealtimeBarShape(props: BarShapeProps) {
   );
 }
 
-export function RealtimeVisitors() {
+const CELL_CLASSES = [
+  "flex items-center gap-3 border-border/50 border-r border-b pt-1 pr-5 pb-4",
+  "flex items-center gap-3 border-border/50 border-b pt-1 pb-4 pl-5",
+  "flex items-center gap-3 border-border/50 border-r pt-4 pr-5 pb-1",
+  "flex items-center gap-3 pt-4 pb-1 pl-5",
+];
+
+export function RealtimeVisitors({ data, points, days, failed }: RealtimeVisitorsProps) {
+  // Períodos da API são UTC — alinhar "hoje" ao mesmo fuso dos buckets.
+  const today = new Date().toISOString().slice(0, 10);
+
+  const chartData = points
+    .filter((point) => point.period <= today)
+    .map((point) => ({ period: point.period, matches: point.matches }));
+
+  const maxMatches = Math.max(1, ...chartData.map((point) => point.matches));
+  const hasMatches = chartData.some((point) => point.matches > 0);
+  const topTeams = data?.teams.slice(0, 4) ?? [];
+
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="font-normal">Realtime Visitors</CardTitle>
+        <CardTitle className="font-normal">Equipas com mais jogos</CardTitle>
         <CardAction>
           <Ellipsis className="size-4" />
         </CardAction>
@@ -101,47 +94,53 @@ export function RealtimeVisitors() {
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-end justify-between">
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl tabular-nums leading-none tracking-tight">24</span>
-            <span className="text-muted-foreground text-sm">per minute</span>
+            <span className="text-2xl tabular-nums leading-none tracking-tight">
+              {failed ? "—" : (data?.periodMatches ?? 0)}
+            </span>
+            <span className="text-muted-foreground text-sm">partidas</span>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-            </span>
-            <span>Live</span>
+            <span>Últimos {days} dias</span>
           </div>
         </div>
-        <ChartContainer config={chartConfig} className="h-36 w-full">
-          <BarChart data={realtimeData} margin={{ bottom: 0, left: 0, right: 0, top: 0 }} barCategoryGap={3}>
-            <XAxis dataKey="minute" hide />
-            <YAxis hide domain={[0, 22]} />
-            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-            <Bar dataKey="visitors" fill="var(--color-visitors)" shape={RealtimeBarShape} />
-          </BarChart>
-        </ChartContainer>
-        <div className="grid grid-cols-2">
-          <div className="flex items-center gap-3 border-border/50 border-r border-b pt-1 pr-5 pb-4">
-            <span aria-hidden="true" className="flag:US shrink-0 rounded-xs text-lg ring-1 ring-foreground/10" />
-            <span className="min-w-0 flex-1 truncate text-sm">United States</span>
-            <span className="text-sm tabular-nums">14</span>
+
+        {hasMatches ? (
+          <ChartContainer config={chartConfig} className="h-36 w-full">
+            <BarChart data={chartData} margin={{ bottom: 0, left: 0, right: 0, top: 0 }} barCategoryGap={3}>
+              <XAxis dataKey="period" hide />
+              <YAxis hide domain={[0, maxMatches]} />
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+              <Bar dataKey="matches" fill="var(--color-matches)" shape={RealtimeBarShape} />
+            </BarChart>
+          </ChartContainer>
+        ) : (
+          <div className="flex h-36 items-center justify-center rounded-lg border border-dashed text-muted-foreground text-sm">
+            {failed ? "Não foi possível carregar as partidas." : "Sem partidas no período."}
           </div>
-          <div className="flex items-center gap-3 border-border/50 border-b pt-1 pb-4 pl-5">
-            <span aria-hidden="true" className="flag:GB shrink-0 rounded-xs text-lg ring-1 ring-foreground/10" />
-            <span className="min-w-0 flex-1 truncate text-sm">United Kingdom</span>
-            <span className="text-sm tabular-nums">4</span>
+        )}
+
+        {topTeams.length > 0 ? (
+          <div className="grid grid-cols-2">
+            {topTeams.map((team, index) => (
+              <div className={CELL_CLASSES[index]} key={team.id}>
+                <span
+                  aria-hidden="true"
+                  className="flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] tabular-nums text-muted-foreground ring-1 ring-foreground/10"
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm" title={`${team.name} — ${team.city}`}>
+                  {team.name}
+                </span>
+                <span className="text-sm tabular-nums">{team.matches}</span>
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-3 border-border/50 border-r pt-4 pr-5 pb-1">
-            <span aria-hidden="true" className="flag:CA shrink-0 rounded-xs text-lg ring-1 ring-foreground/10" />
-            <span className="min-w-0 flex-1 truncate text-sm">Canada</span>
-            <span className="text-sm tabular-nums">3</span>
+        ) : (
+          <div className="flex items-center justify-center pt-2 pb-1 text-muted-foreground text-sm">
+            Sem dados de equipas no período.
           </div>
-          <div className="flex items-center gap-3 pt-4 pb-1 pl-5">
-            <span aria-hidden="true" className="flag:IN shrink-0 rounded-xs text-lg ring-1 ring-foreground/10" />
-            <span className="min-w-0 flex-1 truncate text-sm">India</span>
-            <span className="text-sm tabular-nums">3</span>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

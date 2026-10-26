@@ -1,14 +1,48 @@
+import { isToday } from "date-fns";
 import { ArrowRight, Clock3, Focus, TrendingUp } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { TaskItem } from "@/lib/api/types";
+import { plural } from "@/lib/format";
 
-const summaryCards = [
-  { title: "Today", value: "4", description: "tasks scheduled", icon: Clock3 },
-  { title: "This Week", value: "68%", description: "progress", icon: TrendingUp },
-  { title: "Focus", value: "Deep Work", description: "2 hours remaining", icon: Focus },
-] as const;
+interface SummaryCardsProps {
+  tasks: TaskItem[];
+}
 
-export function SummaryCards() {
+/**
+ * Indicadores do topo: tarefas para hoje, progresso geral e trabalho
+ * em curso — calculados sobre as tarefas reais da API.
+ */
+export function SummaryCards({ tasks }: SummaryCardsProps) {
+  const total = tasks.length;
+  const done = tasks.filter((task) => task.status === "DONE").length;
+  const inProgress = tasks.filter((task) => task.status === "IN_PROGRESS").length;
+  const dueToday = tasks.filter(
+    (task) => task.status !== "DONE" && task.dueDate !== null && isToday(new Date(task.dueDate)),
+  ).length;
+  const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+  const summaryCards = [
+    {
+      title: "Hoje",
+      value: String(dueToday),
+      description: plural(dueToday, "tarefa para hoje", "tarefas para hoje"),
+      icon: Clock3,
+    },
+    {
+      title: "Progresso",
+      value: `${progressPct}%`,
+      description: `${done} de ${total} concluídas`,
+      icon: TrendingUp,
+    },
+    {
+      title: "Foco",
+      value: String(inProgress),
+      description: plural(inProgress, "tarefa em curso", "tarefas em curso"),
+      icon: Focus,
+    },
+  ];
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {summaryCards.map((item) => (

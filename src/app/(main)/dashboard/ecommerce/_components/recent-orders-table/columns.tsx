@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Subscribe } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
+import { pt } from "date-fns/locale";
 import { MoreHorizontal } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ import type { DataTableFeatures } from "@/lib/data-table-features";
 import type { OrderRow } from "./schema";
 
 function formatOrderDate(date: string) {
-  return format(parseISO(date), "h:mm a, d MMM yyyy");
+  return format(parseISO(date), "HH:mm, d 'de' MMM 'de' yyyy", { locale: pt });
 }
 
 function PaymentBadge({ status }: { status: OrderRow["payment"] }) {
@@ -30,7 +31,7 @@ function PaymentBadge({ status }: { status: OrderRow["payment"] }) {
         variant="outline"
       >
         <span className="size-1.5 rounded-full bg-current" />
-        Paid
+        Pago
       </Badge>
     );
   }
@@ -39,7 +40,7 @@ function PaymentBadge({ status }: { status: OrderRow["payment"] }) {
     return (
       <Badge variant="destructive">
         <span className="size-1.5 rounded-full bg-current" />
-        Refunded
+        Reembolsado
       </Badge>
     );
   }
@@ -50,7 +51,7 @@ function PaymentBadge({ status }: { status: OrderRow["payment"] }) {
       variant="outline"
     >
       <span className="size-1.5 rounded-full bg-current" />
-      Pending
+      Pendente
     </Badge>
   );
 }
@@ -63,7 +64,7 @@ function FulfillmentBadge({ status }: { status: OrderRow["fulfillment"] }) {
         variant="outline"
       >
         <span className="size-1.5 rounded-full bg-current" />
-        Fulfilled
+        Expedida
       </Badge>
     );
   }
@@ -72,7 +73,7 @@ function FulfillmentBadge({ status }: { status: OrderRow["fulfillment"] }) {
     return (
       <Badge variant="destructive">
         <span className="size-1.5 rounded-full bg-current" />
-        Returned
+        Devolvida
       </Badge>
     );
   }
@@ -80,7 +81,7 @@ function FulfillmentBadge({ status }: { status: OrderRow["fulfillment"] }) {
   return (
     <Badge variant="destructive">
       <span className="size-1.5 rounded-full bg-current" />
-      Unfulfilled
+      Por expedir
     </Badge>
   );
 }
@@ -99,7 +100,7 @@ export const recentOrdersColumns: ColumnDef<DataTableFeatures, OrderRow>[] = [
         >
           {(checked) => (
             <Checkbox
-              aria-label="Select all orders"
+              aria-label="Selecionar todas as encomendas"
               checked={checked}
               onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             />
@@ -112,7 +113,7 @@ export const recentOrdersColumns: ColumnDef<DataTableFeatures, OrderRow>[] = [
         <Subscribe source={row.table.atoms.rowSelection} selector={(selection) => Boolean(selection?.[row.id])}>
           {(checked) => (
             <Checkbox
-              aria-label={`Select order ${row.original.id}`}
+              aria-label={`Selecionar encomenda ${row.original.id}`}
               checked={checked}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
             />
@@ -125,7 +126,7 @@ export const recentOrdersColumns: ColumnDef<DataTableFeatures, OrderRow>[] = [
   },
   {
     accessorKey: "id",
-    header: "Order",
+    header: "Encomenda",
     cell: ({ row }) => (
       <div className="flex flex-col gap-0.5">
         <div className="font-medium leading-none">{row.original.id}</div>
@@ -136,11 +137,11 @@ export const recentOrdersColumns: ColumnDef<DataTableFeatures, OrderRow>[] = [
   },
   {
     accessorKey: "customer",
-    header: "Customer",
+    header: "Cliente",
   },
   {
     id: "statusSummary",
-    header: "Status",
+    header: "Estado",
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
         <PaymentBadge status={row.original.payment} />
@@ -179,27 +180,27 @@ export const recentOrdersColumns: ColumnDef<DataTableFeatures, OrderRow>[] = [
   },
   {
     accessorKey: "date",
-    header: () => <div className="w-44">Date</div>,
+    header: () => <div className="w-44">Data</div>,
     cell: ({ row }) => <div className="w-44 text-muted-foreground">{formatOrderDate(row.original.date)}</div>,
   },
   {
     id: "actions",
-    header: () => <div className="flex w-full justify-end">Actions</div>,
+    header: () => <div className="flex w-full justify-end">Ações</div>,
     cell: () => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <div className="flex w-full justify-end">
-            <Button aria-label="Open order actions" size="icon-sm" variant="ghost">
+            <Button aria-label="Abrir ações da encomenda" size="icon-sm" variant="ghost">
               <MoreHorizontal />
             </Button>
           </div>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuLabel>Order Actions</DropdownMenuLabel>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuLabel>Ações da encomenda</DropdownMenuLabel>
           <DropdownMenuGroup>
-            <DropdownMenuItem>View order</DropdownMenuItem>
-            <DropdownMenuItem>Contact customer</DropdownMenuItem>
-            <DropdownMenuItem>Copy order ID</DropdownMenuItem>
+            <DropdownMenuItem>Ver encomenda</DropdownMenuItem>
+            <DropdownMenuItem>Contactar cliente</DropdownMenuItem>
+            <DropdownMenuItem>Copiar ID da encomenda</DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
