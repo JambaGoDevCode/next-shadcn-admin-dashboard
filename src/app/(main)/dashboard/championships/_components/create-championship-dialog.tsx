@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus } from "lucide-react";
@@ -18,12 +18,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { Tournament } from "@/lib/api/types";
+import type { City, SportModality, Tournament } from "@/lib/api/types";
 import { createTournamentAction } from "@/server/actions/championships";
 
 import { TOURNAMENT_TYPES } from "./championship-labels";
@@ -33,6 +33,9 @@ const formSchema = z
     name: z.string().min(3, "Informe o nome do campeonato."),
     description: z.string().optional(),
     type: z.string().min(1, "Selecione o tipo."),
+    modalityId: z.coerce.number<number>().int().positive("Selecione a modalidade."),
+    cityId: z.coerce.number<number>().int().positive("Selecione a cidade."),
+    organizerId: z.coerce.number<number>().int().positive().optional(),
     startDate: z.string().min(1, "Indique a data de início."),
     endDate: z.string().min(1, "Indique a data de fim."),
     minTeams: z.coerce.number<number>().int("Valor inválido.").min(2, "Mínimo de 2 equipas."),
@@ -62,9 +65,17 @@ const formSchema = z
 interface CreateChampionshipDialogProps {
   /** Chamado após a criação — o campeonato entra na lista e fica selecionado. */
   onCreated?: (tournament: Tournament) => void;
+  cities: City[];
+  modalities: SportModality[];
+  organizers?: { id: number; name: string }[];
 }
 
-export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialogProps) {
+export function CreateChampionshipDialog({
+  cities,
+  modalities,
+  organizers = [],
+  onCreated,
+}: CreateChampionshipDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -74,6 +85,9 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
       name: "",
       description: "",
       type: "LEAGUE",
+      modalityId: 0,
+      cityId: 0,
+      organizerId: organizers[0]?.id,
       startDate: "",
       endDate: "",
       minTeams: 2,
@@ -85,6 +99,12 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
     },
   });
 
+  useEffect(() => {
+    if (form.getValues("organizerId") === undefined && organizers[0]) {
+      form.setValue("organizerId", organizers[0].id);
+    }
+  }, [form, organizers]);
+
   function onSubmit(data: z.output<typeof formSchema>) {
     startTransition(async () => {
       const description = data.description?.trim();
@@ -92,6 +112,9 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
         name: data.name.trim(),
         description: description ? description : undefined,
         type: data.type,
+        modalityId: data.modalityId,
+        cityId: data.cityId,
+        organizerId: data.organizerId,
         startDate: data.startDate,
         endDate: data.endDate,
         rules: {
@@ -109,6 +132,7 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
       }
       toast.success(`Campeonato ${result.data.name} criado.`);
       form.reset();
+      if (organizers[0]) form.setValue("organizerId", organizers[0].id);
       setOpen(false);
       onCreated?.(result.data);
     });
@@ -129,7 +153,7 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
         <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
           <div className="flex flex-col gap-3">
             <p className="text-muted-foreground text-xs">Identificação</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup className="grid gap-4 sm:grid-cols-2">
               <Controller
                 control={form.control}
                 name="name"
@@ -189,12 +213,95 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
                   </Field>
                 )}
               />
-            </div>
+              <Controller
+                control={form.control}
+                name="modalityId"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel>Modalidade</FieldLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      value={field.value ? String(field.value) : ""}
+                    >
+                      <SelectTrigger aria-label="Modalidade" className="w-full" aria-invalid={fieldState.invalid}>
+                        <SelectValue placeholder="Selecione a modalidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {modalities.map((modality) => (
+                            <SelectItem key={modality.id} value={String(modality.id)}>
+                              {modality.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="cityId"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel>Cidade</FieldLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      value={field.value ? String(field.value) : ""}
+                    >
+                      <SelectTrigger aria-label="Cidade" className="w-full" aria-invalid={fieldState.invalid}>
+                        <SelectValue placeholder="Selecione a cidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {cities.map((city) => (
+                            <SelectItem key={city.id} value={String(city.id)}>
+                              {city.name}
+                              {city.state ? ` · ${city.state}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )}
+              />
+              {organizers.length > 0 && (
+                <Controller
+                  control={form.control}
+                  name="organizerId"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Organizador</FieldLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(Number(value))}
+                        value={field.value ? String(field.value) : ""}
+                      >
+                        <SelectTrigger aria-label="Organizador" className="w-full">
+                          <SelectValue placeholder="Selecione o organizador" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {organizers.map((organizer) => (
+                              <SelectItem key={organizer.id} value={String(organizer.id)}>
+                                {organizer.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                />
+              )}
+            </FieldGroup>
           </div>
 
           <div className="flex flex-col gap-3">
             <p className="text-muted-foreground text-xs">Calendário</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup className="grid gap-4 sm:grid-cols-2">
               <Controller
                 control={form.control}
                 name="startDate"
@@ -222,12 +329,12 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
                   </Field>
                 )}
               />
-            </div>
+            </FieldGroup>
           </div>
 
           <div className="flex flex-col gap-3">
             <p className="text-muted-foreground text-xs">Regras</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup className="grid gap-4 sm:grid-cols-2">
               <Controller
                 control={form.control}
                 name="minTeams"
@@ -327,7 +434,7 @@ export function CreateChampionshipDialog({ onCreated }: CreateChampionshipDialog
                   </Field>
                 )}
               />
-            </div>
+            </FieldGroup>
           </div>
 
           <DialogFooter>

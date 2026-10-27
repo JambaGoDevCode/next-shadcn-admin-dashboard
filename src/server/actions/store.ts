@@ -3,26 +3,37 @@
 import {
   adjustStoreStock,
   cancelStoreOrder,
+  closeStoreReturn,
   completeStoreOrder,
   confirmStoreOrderPayment,
+  createOrderReturn,
   createStoreBrand,
   createStoreCategory,
   createStoreProduct,
+  createStoreProductImage,
   createStoreVariant,
   deleteStoreBrand,
   deleteStoreCategory,
   deleteStoreProduct,
+  deleteStoreProductImage,
   deleteStoreVariant,
   deliverStoreShipment,
   dispatchStoreShipment,
   getStoreOrder,
   getStoreOrders,
   getStoreProduct,
+  getStoreProductImages,
+  getStoreReturns,
+  inspectStoreReturn,
   prepareStoreShipment,
   processStoreOrder,
+  receiveStoreReturn,
+  recordStoreReturnRefund,
+  reviewStoreReturn,
   updateStoreBrand,
   updateStoreCategory,
   updateStoreProduct,
+  updateStoreReturnPolicy,
   updateStoreVariant,
 } from "@/lib/api/resources";
 import type {
@@ -36,6 +47,10 @@ import type {
   StoreOrderList,
   StoreOrderRow,
   StoreProduct,
+  StoreProductImage,
+  StoreReturnPolicy,
+  StoreReturnReason,
+  StoreReturnRequest,
   StoreShipment,
   VariantInput,
 } from "@/lib/api/types";
@@ -46,9 +61,8 @@ import { getSessionTokens } from "@/lib/auth/session";
  * devolve um resultado legível para os diálogos (`{ ok }` / erro).
  */
 async function run<T>(operation: (token: string) => Promise<T>): Promise<ActionResult<T>> {
-  const { accessToken } = await getSessionTokens();
-
   try {
+    const { accessToken } = await getSessionTokens();
     const data = await operation(accessToken ?? "");
     return { ok: true, data };
   } catch (error) {
@@ -160,6 +174,83 @@ export async function adjustStockAction(
   input: StockAdjustInput,
 ): Promise<ActionResult<InventoryRow>> {
   return run((token) => adjustStoreStock(token, variantId, input));
+}
+
+export async function getProductImagesAction(productId: number): Promise<ActionResult<StoreProductImage[]>> {
+  return run((token) => getStoreProductImages(token, productId));
+}
+
+export async function createProductImageAction(
+  productId: number,
+  input: { url: string; altText?: string | null },
+): Promise<ActionResult<StoreProductImage>> {
+  return run((token) => createStoreProductImage(token, productId, input));
+}
+
+export async function deleteProductImageAction(imageId: number): Promise<ActionResult> {
+  return run((token) => deleteStoreProductImage(token, imageId));
+}
+
+export async function getStoreReturnsAction(): Promise<ActionResult<StoreReturnRequest[]>> {
+  return run((token) => getStoreReturns(token));
+}
+
+export async function createStoreReturnForOrderAction(
+  orderId: number,
+  input: {
+    reason: StoreReturnReason;
+    description: string;
+    items: Array<{ orderItemId: number; quantity: number }>;
+  },
+): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => createOrderReturn(token, orderId, input));
+}
+
+export async function updateStoreReturnPolicyAction(
+  input: Pick<StoreReturnPolicy, "enabled" | "windowDays" | "allowChangeOfMind">,
+): Promise<ActionResult<StoreReturnPolicy>> {
+  return run((token) => updateStoreReturnPolicy(token, input));
+}
+
+export async function reviewStoreReturnAction(
+  id: number,
+  input: { decision: "APPROVE" | "REJECT"; note: string },
+): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => reviewStoreReturn(token, id, input));
+}
+
+export async function receiveStoreReturnAction(
+  id: number,
+  input: {
+    items: Array<{ orderItemId: number; quantityReceived: number }>;
+  },
+): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => receiveStoreReturn(token, id, input));
+}
+
+export async function inspectStoreReturnAction(
+  id: number,
+  input: {
+    items: Array<{
+      orderItemId: number;
+      quantityAccepted: number;
+      quantityRestocked: number;
+      inspectionNote?: string;
+    }>;
+  },
+): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => inspectStoreReturn(token, id, input));
+}
+
+export async function recordStoreReturnRefundAction(
+  id: number,
+  input: { method: string; reference: string; note: string },
+): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => recordStoreReturnRefund(token, id, input));
+}
+
+export async function closeStoreReturnAction(id: number, note: string): Promise<ActionResult<StoreReturnRequest>> {
+  return run((token) => closeStoreReturn(token, id, note));
 }
 
 // ============================================================

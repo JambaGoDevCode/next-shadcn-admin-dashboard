@@ -11,19 +11,20 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Tournament } from "@/lib/api/types";
+import type { City, SportModality, Tournament } from "@/lib/api/types";
 import { formatDate, plural } from "@/lib/format";
 import { cn, getInitials } from "@/lib/utils";
 
 import {
-  TOURNAMENT_STATUSES,
   championshipStatusLabel,
   championshipStatusVariant,
+  TOURNAMENT_STATUSES,
   tournamentTypeLabel,
 } from "./championship-labels";
 import { CreateChampionshipDialog } from "./create-championship-dialog";
 
 const STATUS_FILTER_ALL = "__all";
+const FILTER_ALL = "__all";
 
 interface ChampionshipsListCardProps {
   /** `null` enquanto ainda não carregou. */
@@ -37,6 +38,11 @@ interface ChampionshipsListCardProps {
   onSelect: (tournament: Tournament) => void;
   /** Chamado após a criação — seleciona o novo campeonato e recarrega. */
   onCreated: (tournament: Tournament) => void;
+  cities: City[];
+  modalities: SportModality[];
+  organizers: { id: number; name: string }[];
+  organizerOptions: { id: number; name: string }[];
+  approvalOnly?: boolean;
 }
 
 /**
@@ -52,25 +58,51 @@ export function ChampionshipsListCard({
   onRetry,
   onSelect,
   onCreated,
+  cities,
+  modalities,
+  organizers,
+  organizerOptions,
+  approvalOnly = false,
 }: ChampionshipsListCardProps) {
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState(STATUS_FILTER_ALL);
+  const [cityId, setCityId] = React.useState(FILTER_ALL);
+  const [stateName, setStateName] = React.useState(FILTER_ALL);
+  const [modalityId, setModalityId] = React.useState(FILTER_ALL);
+  const [organizerId, setOrganizerId] = React.useState(FILTER_ALL);
 
   const visible = React.useMemo(() => {
     if (!tournaments) return [];
     const q = query.trim().toLowerCase();
     return tournaments.filter((tournament) => {
+      if (approvalOnly && tournament.status !== "DRAFT") return false;
       if (q && !tournament.name.toLowerCase().includes(q)) return false;
       if (status !== STATUS_FILTER_ALL && tournament.status !== status) return false;
+      if (cityId !== FILTER_ALL && String(tournament.cityId ?? "") !== cityId) return false;
+      if (stateName !== FILTER_ALL && cities.find((city) => city.id === tournament.cityId)?.state !== stateName) {
+        return false;
+      }
+      if (modalityId !== FILTER_ALL && String(tournament.modalityId ?? "") !== modalityId) return false;
+      if (organizerId !== FILTER_ALL && String(tournament.organizerId ?? "") !== organizerId) return false;
       return true;
     });
-  }, [tournaments, query, status]);
+  }, [tournaments, query, status, cityId, stateName, modalityId, organizerId, approvalOnly, cities]);
 
-  const hasFilters = query.trim().length > 0 || status !== STATUS_FILTER_ALL;
+  const hasFilters =
+    query.trim().length > 0 ||
+    status !== STATUS_FILTER_ALL ||
+    cityId !== FILTER_ALL ||
+    stateName !== FILTER_ALL ||
+    modalityId !== FILTER_ALL ||
+    organizerId !== FILTER_ALL;
 
   function clearFilters() {
     setQuery("");
     setStatus(STATUS_FILTER_ALL);
+    setCityId(FILTER_ALL);
+    setStateName(FILTER_ALL);
+    setModalityId(FILTER_ALL);
+    setOrganizerId(FILTER_ALL);
   }
 
   let body: React.ReactNode;
@@ -98,13 +130,22 @@ export function ChampionshipsListCard({
           <EmptyMedia variant="icon">
             <Search />
           </EmptyMedia>
-          <EmptyTitle>Nenhum campeonato criado</EmptyTitle>
+          <EmptyTitle>{approvalOnly ? "Nenhum torneio aguarda aprovação" : "Nenhum campeonato criado"}</EmptyTitle>
           <EmptyDescription>
-            Crie o primeiro campeonato para começar a gerir inscrições e classificação.
+            {approvalOnly
+              ? "Os torneios em rascunho aparecem aqui para validação e publicação."
+              : "Crie o primeiro campeonato para começar a gerir inscrições e classificação."}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <CreateChampionshipDialog onCreated={onCreated} />
+          {!approvalOnly && (
+            <CreateChampionshipDialog
+              cities={cities}
+              modalities={modalities}
+              organizers={organizerOptions}
+              onCreated={onCreated}
+            />
+          )}
         </EmptyContent>
       </Empty>
     );
@@ -134,7 +175,16 @@ export function ChampionshipsListCard({
           {visible.map((tournament) => {
             const active = tournament.id === selectedTournamentId;
             const period = `${formatDate(tournament.period.startDate)} – ${formatDate(tournament.period.endDate)}`;
-            const meta = `${tournamentTypeLabel(tournament.type)} • ${period}`;
+            const modality = modalities.find((option) => option.id === tournament.modalityId)?.name;
+            const city = cities.find((option) => option.id === tournament.cityId);
+            const meta = [
+              tournamentTypeLabel(tournament.type),
+              modality ?? "Modalidade por definir",
+              city ? `${city.name}${city.state ? ` · ${city.state}` : ""}` : null,
+              period,
+            ]
+              .filter(Boolean)
+              .join(" • ");
             return (
               <li key={tournament.id}>
                 <button
@@ -186,9 +236,13 @@ export function ChampionshipsListCard({
   return (
     <Card>
       <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 md:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
-        <CardTitle className="text-xl leading-none">Campeonatos</CardTitle>
+        <CardTitle className="text-xl leading-none">
+          {approvalOnly ? "Aprovação e publicação" : "Todos os torneios"}
+        </CardTitle>
         <CardDescription className="max-w-xl leading-snug">
-          Tipos, períodos, inscrições e classificação dos campeonatos.
+          {approvalOnly
+            ? "Analise torneios em rascunho e aprove a publicação quando estiverem prontos."
+            : "Pesquise e acompanhe torneios por modalidade, cidade, estado e organizador."}
         </CardDescription>
         <CardAction className="col-start-1 row-start-auto flex w-full flex-wrap justify-start gap-2 justify-self-stretch md:col-start-2 md:row-span-2 md:row-start-1 md:w-auto md:flex-nowrap md:justify-end md:justify-self-end">
           <Button
@@ -200,7 +254,14 @@ export function ChampionshipsListCard({
           >
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
           </Button>
-          <CreateChampionshipDialog onCreated={onCreated} />
+          {!approvalOnly && (
+            <CreateChampionshipDialog
+              cities={cities}
+              modalities={modalities}
+              organizers={organizerOptions}
+              onCreated={onCreated}
+            />
+          )}
         </CardAction>
       </CardHeader>
 
@@ -218,16 +279,93 @@ export function ChampionshipsListCard({
             />
           </InputGroup>
 
-          <Select onValueChange={setStatus} value={status}>
-            <SelectTrigger aria-label="Filtrar por estado" className="w-48">
-              <SelectValue />
+          {!approvalOnly && (
+            <Select onValueChange={setStatus} value={status}>
+              <SelectTrigger aria-label="Filtrar por estado do torneio" className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value={STATUS_FILTER_ALL}>Todos os estados do torneio</SelectItem>
+                  {TOURNAMENT_STATUSES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select onValueChange={setModalityId} value={modalityId}>
+            <SelectTrigger aria-label="Filtrar por modalidade" className="w-full sm:w-48">
+              <SelectValue placeholder="Todas as modalidades" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value={STATUS_FILTER_ALL}>Todos os estados</SelectItem>
-                {TOURNAMENT_STATUSES.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                <SelectItem value={FILTER_ALL}>Todas as modalidades</SelectItem>
+                {modalities.map((modality) => (
+                  <SelectItem key={modality.id} value={String(modality.id)}>
+                    {modality.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={setCityId} value={cityId}>
+            <SelectTrigger aria-label="Filtrar por cidade" className="w-full sm:w-48">
+              <SelectValue placeholder="Todas as cidades" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={FILTER_ALL}>Todas as cidades</SelectItem>
+                {cities.map((city) => (
+                  <SelectItem key={city.id} value={String(city.id)}>
+                    {city.name}
+                    {city.state ? ` · ${city.state}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={setStateName} value={stateName}>
+            <SelectTrigger aria-label="Filtrar por estado" className="w-full sm:w-48">
+              <SelectValue placeholder="Todos os estados" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={FILTER_ALL}>Todos os estados</SelectItem>
+                {Array.from(
+                  new Set(cities.map((city) => city.state).filter((value): value is string => Boolean(value))),
+                )
+                  .sort((left, right) => left.localeCompare(right))
+                  .map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={setOrganizerId} value={organizerId}>
+            <SelectTrigger aria-label="Filtrar por organizador" className="w-full sm:w-48">
+              <SelectValue placeholder="Todos os organizadores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={FILTER_ALL}>Todos os organizadores</SelectItem>
+                {Array.from(
+                  new Set(
+                    (tournaments ?? [])
+                      .map((tournament) => tournament.organizerId)
+                      .filter((id): id is number => typeof id === "number"),
+                  ),
+                ).map((id) => (
+                  <SelectItem key={id} value={String(id)}>
+                    {organizers.find((organizer) => organizer.id === id)?.name ?? `Organizador #${id}`}
                   </SelectItem>
                 ))}
               </SelectGroup>

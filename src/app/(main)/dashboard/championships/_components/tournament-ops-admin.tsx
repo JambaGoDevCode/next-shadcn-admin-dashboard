@@ -50,12 +50,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type {
+  Field as ApiField,
   Player,
   Team,
   Tournament,
   TournamentAward,
   TournamentDiscipline,
   TournamentFixture,
+  TournamentFixtureResultHistory,
   TournamentHistory,
   TournamentPayment,
   TournamentPlayerStats,
@@ -88,6 +90,7 @@ import {
   liftSuspensionAction,
   listAwardsAction,
   listDisciplineReportAction,
+  listFixtureResultHistoryAction,
   listFixturesAction,
   listPaymentsByTournamentAction,
   listStagesAction,
@@ -100,7 +103,7 @@ import {
   updateStageAction,
 } from "@/server/actions/championship-ops";
 import { listRegistrationsAction, listTournamentsAction } from "@/server/actions/championships";
-import { listTeamsAction } from "@/server/actions/management";
+import { listFieldsAction, listTeamsAction } from "@/server/actions/management";
 import { listPlayersAction } from "@/server/actions/players";
 
 import { ChampionshipRegistrationsCard } from "./championship-registrations-card";
@@ -399,6 +402,7 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
   const Icon = meta.icon;
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [fields, setFields] = useState<ApiField[]>([]);
   const [registrations, setRegistrations] = useState<TournamentRegistration[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -409,6 +413,7 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
   const [pending, startTransition] = useTransition();
   const [stages, setStages] = useState<TournamentStage[]>([]);
   const [fixtures, setFixtures] = useState<TournamentFixture[]>([]);
+  const [resultHistory, setResultHistory] = useState<TournamentFixtureResultHistory[]>([]);
   const [awards, setAwards] = useState<TournamentAward[]>([]);
   const [disciplines, setDisciplines] = useState<TournamentDiscipline[]>([]);
   const [payments, setPayments] = useState<TournamentPayment[]>([]);
@@ -423,16 +428,18 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
   useEffect(() => {
     let cancelled = false;
     setLoadingRefs(true);
-    Promise.all([listTournamentsAction(), listTeamsAction(), listPlayersAction()])
-      .then(([t, tm, pl]) => {
+    Promise.all([listTournamentsAction(), listTeamsAction(), listPlayersAction(), listFieldsAction()])
+      .then(([t, tm, pl, fld]) => {
         if (cancelled) return;
         if (!t.ok) toast.error(t.error);
         if (!tm.ok) toast.error(tm.error);
         if (!pl.ok) toast.error(pl.error);
+        if (!fld.ok) toast.error(fld.error);
         const tournamentsData = t.ok ? t.data : [];
         setTournaments(tournamentsData);
         setTeams(tm.ok ? tm.data : []);
         setPlayers(pl.ok ? pl.data : []);
+        setFields(fld.ok ? fld.data : []);
         setSelectedId((current) => current ?? tournamentsData[0]?.id ?? null);
         setLoadingRefs(false);
       })
@@ -505,8 +512,18 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
           if (result.ok) setStages(result.data as TournamentStage[]);
           break;
         case "fixtures":
-          result = await listFixturesAction(selectedId);
-          if (result.ok) setFixtures(result.data as TournamentFixture[]);
+          {
+            const [fixturesResult, historyResult] = await Promise.all([
+              listFixturesAction(selectedId),
+              listFixtureResultHistoryAction(selectedId),
+            ]);
+            if (!fixturesResult.ok) result = fixturesResult;
+            else if (!historyResult.ok) result = historyResult;
+            else {
+              setFixtures(fixturesResult.data);
+              setResultHistory(historyResult.data);
+            }
+          }
           break;
         case "awards":
           result = await listAwardsAction(selectedId);
@@ -822,10 +839,27 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
             },
             { key: "type", label: "Tipo", render: (row) => String(row.type) },
             {
+              key: "schedule",
+              label: "Data e horário",
+              render: (row) =>
+                row.date
+                  ? `${formatDate(String(row.date))}${row.startTime ? ` · ${String(row.startTime)}` : ""}${row.endTime ? `–${String(row.endTime)}` : ""}`
+                  : "Por agendar",
+            },
+            {
+              key: "field",
+              label: "Campo",
+              render: (row) =>
+                fields.find((field) => field.id === Number(row.fieldId))?.name ??
+                (row.fieldId ? `Campo #${row.fieldId}` : "Por atribuir"),
+            },
+            {
               key: "result",
               label: "Resultado",
               render: (row) =>
-                row.isPlayed ? (
+                row.isCancelled ? (
+                  <Badge variant="destructive">Cancelado</Badge>
+                ) : row.isPlayed ? (
                   `${row.homeScore ?? 0} – ${row.awayScore ?? 0}`
                 ) : (
                   <Badge variant="outline">Por jogar</Badge>
@@ -854,18 +888,25 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
                           required: true,
                           defaultValue: String(fixture.awayScore ?? 0),
                         },
+                        {
+                          name: "resultReason",
+                          label: "Justificação da alteração",
+                          type: "textarea",
+                          required: true,
+                        },
                       ]}
                       onSubmit={(values) =>
                         runAction(
                           updateFixtureResultAction(fixture.id, {
                             homeScore: Number(formString(values, "homeScore")),
                             awayScore: Number(formString(values, "awayScore")),
+                            resultReason: formString(values, "resultReason"),
                           }),
-                          "Resultado registado.",
+                          "Resultado registado no histórico.",
                         )
                       }
-                      title="Registar resultado"
-                      triggerLabel="Resultado"
+                      title={fixture.isPlayed ? "Alterar resultado" : "Registar resultado"}
+                      triggerLabel={fixture.isPlayed ? "Alterar resultado" : "Resultado"}
                     />
                     <ConfirmButton
                       description="O jogo será removido do calendário."
@@ -880,6 +921,40 @@ export function TournamentOpsAdmin({ section }: { section: TournamentOpsSection 
             },
           ]}
         />
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico de alterações de resultados</CardTitle>
+            <CardDescription>
+              Cada alteração exige uma justificação e fica associada ao administrador responsável.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              rows={resultHistory as unknown as Record<string, unknown>[]}
+              columns={[
+                { key: "fixture", label: "Jogo", render: (row) => `#${row.fixtureId}` },
+                {
+                  key: "previous",
+                  label: "Resultado anterior",
+                  render: (row) =>
+                    row.previousHomeScore == null || row.previousAwayScore == null
+                      ? "Sem resultado"
+                      : `${row.previousHomeScore} – ${row.previousAwayScore}`,
+                },
+                { key: "current", label: "Novo resultado", render: (row) => `${row.homeScore} – ${row.awayScore}` },
+                { key: "reason", label: "Justificação", render: (row) => String(row.reason) },
+                { key: "actor", label: "Administrador", render: (row) => `#${row.actorUserId}` },
+                {
+                  key: "created",
+                  label: "Alterado em",
+                  render: (row) => (row.createdAt ? formatDateTime(String(row.createdAt)) : "—"),
+                },
+              ]}
+              emptyDescription="As alterações efetuadas aos resultados serão registadas aqui."
+              emptyTitle="Sem alterações de resultados"
+            />
+          </CardContent>
+        </Card>
       </>
     );
   } else if (section === "awards" && selectedId) {

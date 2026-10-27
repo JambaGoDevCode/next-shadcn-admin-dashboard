@@ -2,9 +2,10 @@
 
 import * as React from "react";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   InventoryRow,
   StockMovement,
@@ -18,13 +19,17 @@ import { InventorySection } from "./inventory-section";
 import { OrderDialog } from "./order-dialog";
 import { OrdersSection } from "./orders-section";
 import { ProductDialog } from "./product-dialog";
+import { ProductImagesSection } from "./product-images-section";
 import { ProductsSection } from "./products-section";
 import { StockAdjustDialog } from "./stock-adjust-dialog";
+import { StockMovementsSection } from "./stock-movements-section";
 import { StructureDialog } from "./structure-dialog";
 import { StructureSection } from "./structure-section";
 import { StoreSummaryCards } from "./summary-cards";
+import { VariantsSection } from "./variants-section";
 
 interface StoreWorkspaceProps {
+  section: StoreSection;
   metrics: StoreMetrics;
   products: StoreProduct[];
   categories: StoreCatalogItem[];
@@ -34,14 +39,27 @@ interface StoreWorkspaceProps {
   orders: StoreOrderRow[];
 }
 
+export type StoreSection =
+  | "overview"
+  | "products"
+  | "categories"
+  | "brands"
+  | "variants"
+  | "images"
+  | "inventory"
+  | "movements"
+  | "orders"
+  | "expedicao"
+  | "devolucoes";
+
 type StructureKind = "category" | "brand";
 
 /**
- * Coluna principal da página da loja: mantém o estado partilhado
- * (separadores e diálogos de CRUD) — os dados chegam do servidor na
- * página e são recarregados com `router.refresh()`.
+ * Área principal da loja: cada submenu mostra o seu fluxo e os
+ * diálogos de escrita recarregam os dados com `router.refresh()`.
  */
 export function StoreWorkspace({
+  section,
   metrics,
   products,
   categories,
@@ -52,7 +70,6 @@ export function StoreWorkspace({
 }: StoreWorkspaceProps) {
   const router = useRouter();
 
-  const [tab, setTab] = React.useState("produtos");
   const [productDialog, setProductDialog] = React.useState<{ open: boolean; product: StoreProduct | null }>({
     open: false,
     product: null,
@@ -83,7 +100,7 @@ export function StoreWorkspace({
    */
   const handleProductSaved = (product: StoreProduct | null) => {
     router.refresh();
-    setProductDialog((current) => ({ open: product !== null, product }));
+    setProductDialog((_current) => ({ open: product !== null, product }));
   };
 
   const handleStructureSaved = (kind: StructureKind) => {
@@ -91,46 +108,110 @@ export function StoreWorkspace({
     setStructureDialog((current) => ({ ...current, open: false, item: null, kind }));
   };
 
+  const activeOrders =
+    section === "expedicao"
+      ? orders.filter((order) => order.status === "PAID" || order.status === "PROCESSING")
+      : orders;
+  const shortcuts = [
+    {
+      title: "Produtos",
+      description: "Gerir publicação, preços, descrições e variantes.",
+      href: "/dashboard/store/products",
+    },
+    {
+      title: "Categorias",
+      description: "Organizar categorias e marcas comercializadas.",
+      href: "/dashboard/store/categories",
+    },
+    {
+      title: "Imagens",
+      description: "Manter a imagem principal e a galeria dos produtos.",
+      href: "/dashboard/store/images",
+    },
+    {
+      title: "Inventário",
+      description: "Consultar disponibilidade, reservas e níveis de stock.",
+      href: "/dashboard/store/inventory",
+    },
+    {
+      title: "Movimentos",
+      description: "Auditar entradas, saídas, devoluções e perdas.",
+      href: "/dashboard/store/movements",
+    },
+    {
+      title: "Encomendas",
+      description: "Acompanhar pagamentos e pedidos de compra.",
+      href: "/dashboard/store/orders",
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
-      <StoreSummaryCards metrics={metrics} />
+      {section === "overview" ? <StoreSummaryCards metrics={metrics} /> : null}
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="produtos">Produtos</TabsTrigger>
-          <TabsTrigger value="inventario">Inventário</TabsTrigger>
-          <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
-          <TabsTrigger value="encomendas">Encomendas</TabsTrigger>
-        </TabsList>
+      {section === "overview" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {shortcuts.map(({ title, description, href }) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardHeader>
+                  <CardTitle>{title}</CardTitle>
+                  <CardDescription>{description}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-primary text-sm">Abrir gestão</CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
-        <TabsContent value="produtos" className="mt-4">
-          <ProductsSection
-            products={products}
-            categories={categories}
-            brands={brands}
-            onNew={() => openProductDialog(null)}
-            onEdit={openProductDialog}
-          />
-        </TabsContent>
+      {section === "products" ? (
+        <ProductsSection
+          products={products}
+          categories={categories}
+          brands={brands}
+          onNew={() => openProductDialog(null)}
+          onEdit={openProductDialog}
+        />
+      ) : null}
 
-        <TabsContent value="inventario" className="mt-4">
-          <InventorySection inventory={inventory} movements={movements} onAdjust={openAdjustDialog} />
-        </TabsContent>
+      {section === "categories" || section === "brands" ? (
+        <StructureSection
+          categories={categories}
+          brands={brands}
+          visibleKinds={section === "categories" ? ["category"] : ["brand"]}
+          onNew={(kind) => openStructureDialog(kind, null)}
+          onEdit={(kind, item) => openStructureDialog(kind, item)}
+          onChanged={handleStructureSaved}
+        />
+      ) : null}
 
-        <TabsContent value="catalogo" className="mt-4">
-          <StructureSection
-            categories={categories}
-            brands={brands}
-            onNew={(kind) => openStructureDialog(kind, null)}
-            onEdit={(kind, item) => openStructureDialog(kind, item)}
-            onChanged={handleStructureSaved}
-          />
-        </TabsContent>
+      {section === "variants" ? <VariantsSection products={products} onEdit={openProductDialog} /> : null}
 
-        <TabsContent value="encomendas" className="mt-4">
-          <OrdersSection orders={orders} onView={(order) => setOrderDialog({ open: true, orderId: order.id })} />
-        </TabsContent>
-      </Tabs>
+      {section === "images" ? <ProductImagesSection products={products} onEditProduct={openProductDialog} /> : null}
+
+      {section === "inventory" ? (
+        <InventorySection
+          inventory={inventory}
+          movements={movements}
+          showMovements={false}
+          onAdjust={openAdjustDialog}
+        />
+      ) : null}
+
+      {section === "movements" ? <StockMovementsSection movements={movements} /> : null}
+
+      {section === "orders" || section === "expedicao" ? (
+        <OrdersSection
+          orders={activeOrders}
+          title={section === "expedicao" ? "Preparação e expedição" : "Encomendas"}
+          onView={(order) => setOrderDialog({ open: true, orderId: order.id })}
+        />
+      ) : null}
 
       <ProductDialog
         open={productDialog.open}

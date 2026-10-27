@@ -7,7 +7,7 @@ import { Eye, Search, ShoppingBag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,13 +26,14 @@ const STATUS_OPTIONS = [
 interface OrdersSectionProps {
   orders: StoreOrderRow[];
   onView: (order: StoreOrderRow) => void;
+  title?: string;
 }
 
 /**
  * Listagem de encomendas: pesquisa por número/cliente e filtro por
  * estado. Cada linha abre o detalhe (itens, morada, pagamentos, remessa).
  */
-export function OrdersSection({ orders, onView }: OrdersSectionProps) {
+export function OrdersSection({ orders, onView, title = "Encomendas" }: OrdersSectionProps) {
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState("all");
 
@@ -49,7 +50,7 @@ export function OrdersSection({ orders, onView }: OrdersSectionProps) {
     <Card>
       <CardHeader>
         <div>
-          <CardTitle>Encomendas</CardTitle>
+          <CardTitle>{title}</CardTitle>
           <CardDescription>Pedidos de compra — estado de pagamento, processamento e remessa.</CardDescription>
         </div>
         <CardAction>

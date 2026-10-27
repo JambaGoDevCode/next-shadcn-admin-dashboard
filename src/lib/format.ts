@@ -81,12 +81,28 @@ const MATCHMAKING_STATUS_LABELS: Record<string, string> = {
   REJECTED: "Rejeitada",
 };
 
+// Os módulos de pagamentos/finance devolvem estados em MAIÚSCULAS; alguns
+// endpoints legados usam minúsculas — ambas as chaves são aceites.
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  AUTHORIZED: "Autorizado",
+  CANCELLED: "Cancelado",
+  FAILED: "Falhou",
+  PAID: "Pago",
+  PENDING: "Pendente",
+  REFUNDED: "Reembolsado",
   failed: "Falhou",
   paid: "Pago",
   pending: "Pendente",
   processing: "Processando",
   refunded: "Reembolsado",
+};
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  AFRIMONEY: "Afrimoney",
+  CASH: "Numerário",
+  CARD: "Cartão",
+  MULTICAIXA: "Multicaixa",
+  UNITEL_MONEY: "Unitel Money",
 };
 
 const PROFILE_TYPE_LABELS: Record<string, string> = {
@@ -130,6 +146,13 @@ const STATUS_TONES: Record<string, string> = {
     "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-500/15 dark:text-emerald-300",
   POSTPONED:
     "border-amber-300 bg-amber-500/10 text-amber-700 dark:border-amber-900/40 dark:bg-amber-500/15 dark:text-amber-300",
+  // payments (módulo de pagamentos)
+  PAID: "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-500/15 dark:text-emerald-300",
+  AUTHORIZED:
+    "border-blue-300 bg-blue-500/10 text-blue-700 dark:border-blue-900/40 dark:bg-blue-500/15 dark:text-blue-300",
+  FAILED: "border-red-300 bg-red-500/10 text-red-700 dark:border-red-900/40 dark:bg-red-500/15 dark:text-red-300",
+  REFUNDED:
+    "border-violet-300 bg-violet-500/10 text-violet-700 dark:border-violet-900/40 dark:bg-violet-500/15 dark:text-violet-300",
 };
 
 export function bookingStatusLabel(status: string): string {
@@ -146,6 +169,10 @@ export function matchmakingStatusLabel(status: string): string {
 
 export function paymentStatusLabel(status: string): string {
   return PAYMENT_STATUS_LABELS[status] ?? status;
+}
+
+export function paymentMethodLabel(method: string): string {
+  return PAYMENT_METHOD_LABELS[method] ?? method;
 }
 
 export function profileTypeLabel(type: string): string {
@@ -204,12 +231,17 @@ const STOCK_MOVEMENT_LABELS: Record<string, string> = {
   IN: "Entrada",
   OUT: "Saída",
   ADJUST: "Ajuste",
+  RETURN: "Devolução",
+  LOSS: "Perda",
 };
 
 const STOCK_MOVEMENT_TONES: Record<string, string> = {
   IN: "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-500/15 dark:text-emerald-300",
   OUT: "border-border bg-muted text-muted-foreground",
   ADJUST: "border-sky-300 bg-sky-500/10 text-sky-700 dark:border-sky-900/40 dark:bg-sky-500/15 dark:text-sky-300",
+  RETURN:
+    "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-500/15 dark:text-emerald-300",
+  LOSS: "border-red-300 bg-red-500/10 text-red-700 dark:border-red-900/40 dark:bg-red-500/15 dark:text-red-300",
 };
 
 const STOCK_STATE_LABELS: Record<string, string> = {
@@ -234,6 +266,10 @@ export function productStatusTone(status: string): string {
 
 export function stockMovementLabel(type: string): string {
   return STOCK_MOVEMENT_LABELS[type] ?? type;
+}
+
+export function stockMovementDelta(type: string, quantity: number): number {
+  return type === "OUT" || type === "LOSS" ? -Math.abs(quantity) : quantity;
 }
 
 export function stockMovementTone(type: string): string {

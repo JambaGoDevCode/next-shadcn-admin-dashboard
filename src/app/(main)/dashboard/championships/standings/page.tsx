@@ -1,5 +1,12 @@
-import { TournamentOpsAdmin } from "../_components/tournament-ops-admin";
+import { TournamentOperationsSwitcher } from "../_components/tournament-operations-switcher";
 
 export default function Page() {
-  return <TournamentOpsAdmin section="standings" />;
+  return (
+    <TournamentOperationsSwitcher
+      items={[
+        { section: "standings", label: "Classificações" },
+        { section: "fixtures", label: "Resultados e histórico" },
+      ]}
+    />
+  );
 }

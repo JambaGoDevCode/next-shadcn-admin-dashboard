@@ -1,5 +1,5 @@
 import { apiFetch, extractData } from "./client";
-import { normalizeCity, type ApiCityRow } from "./management";
+import { type ApiCityRow, normalizeCity } from "./management";
 import type {
   AcquisitionFunnel,
   AnalyticsAssets,
@@ -16,8 +16,12 @@ import type {
   Field,
   InventoryRow,
   Match,
+  MatchDispute,
+  MatchDisputeInput,
+  MatchDisputeResolutionInput,
   MatchFormValues,
   MatchmakingMatch,
+  MatchmakingOperations,
   MatchmakingRecommendation,
   MatchmakingRecommendationRow,
   MemberInfo,
@@ -26,15 +30,20 @@ import type {
   Player,
   ProductInput,
   RecentUser,
+  SportModality,
   StockAdjustInput,
   StockMovement,
   StoreCatalogItem,
   StoreMetrics,
-  StoreOverview,
   StoreOrderDetail,
   StoreOrderList,
   StoreOrderRow,
+  StoreOverview,
   StoreProduct,
+  StoreProductImage,
+  StoreReturnPolicy,
+  StoreReturnReason,
+  StoreReturnRequest,
   StoreShipment,
   StoreVariant,
   TaskInput,
@@ -54,6 +63,10 @@ async function list<T>(path: string, token: string): Promise<T[]> {
 
 export function getUsers(token: string): Promise<UserSummary[]> {
   return list<UserSummary>("/users", token);
+}
+
+export function getSportModalities(token: string): Promise<SportModality[]> {
+  return list<SportModality>("/sport/modalities", token);
 }
 
 /** The API has no list-all users endpoint — lookup is only possible by exact email. */
@@ -99,9 +112,12 @@ export function scheduleMatches(
   token: string,
   input: { teamIds: number[]; fieldId: number; cityId: number },
 ): Promise<Match[]> {
-  return apiFetch<Match[]>("/matches/schedule", { method: "POST", body: input, token }).then(
-    extractData<Match[] | Match>,
-  ).then((data) => (Array.isArray(data) ? data : data ? [data] : []));
+  return apiFetch<Match[]>("/matches/schedule", { method: "POST", body: input, token })
+    .then(extractData<Match[] | Match>)
+    .then((data) => {
+      if (Array.isArray(data)) return data;
+      return data ? [data] : [];
+    });
 }
 
 /** PATCH /matches/:id/start — coloca a partida em curso (LIVE). */
@@ -188,6 +204,41 @@ export function rejectMatchmaking(token: string, id: number): Promise<Matchmakin
   );
 }
 
+export function getMatchmakingOperations(token: string): Promise<MatchmakingOperations> {
+  return apiFetch<MatchmakingOperations>("/matchmaking/operations", { token }).then(extractData<MatchmakingOperations>);
+}
+
+export function getMatchDisputes(token: string): Promise<MatchDispute[]> {
+  return list<MatchDispute>("/matches/operations/disputes", token);
+}
+
+export function createMatchDispute(token: string, matchId: number, input: MatchDisputeInput): Promise<MatchDispute> {
+  return apiFetch<MatchDispute>(`/matches/${matchId}/disputes`, {
+    method: "POST",
+    body: input,
+    token,
+  }).then(extractData<MatchDispute>);
+}
+
+export function resolveMatchDispute(
+  token: string,
+  disputeId: number,
+  input: MatchDisputeResolutionInput,
+): Promise<MatchDispute> {
+  return apiFetch<MatchDispute>(`/matches/operations/disputes/${disputeId}`, {
+    method: "PATCH",
+    body: input,
+    token,
+  }).then(extractData<MatchDispute>);
+}
+
+export function validateMatchResult(token: string, matchId: number): Promise<Match> {
+  return apiFetch<Match>(`/matches/operations/${matchId}/validate-result`, {
+    method: "PATCH",
+    token,
+  }).then(extractData<Match>);
+}
+
 export function getBookings(token: string): Promise<Booking[]> {
   return list<Booking>("/bookings", token);
 }
@@ -208,8 +259,10 @@ export function getMetricsTimeseries(token: string, days = 90, cityId?: number):
   );
 }
 
-export function getRecentUsers(token: string, limit = 20): Promise<RecentUser[]> {
-  return list<RecentUser>(`/users/recent?limit=${limit}`, token);
+export function getRecentUsers(token: string, limit = 20, type?: string): Promise<RecentUser[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (type) params.set("type", type);
+  return list<RecentUser>(`/users/recent?${params.toString()}`, token);
 }
 
 export function getAudienceOverview(token: string, days: number): Promise<AudienceOverview> {
@@ -351,15 +404,33 @@ export function getStoreStockMovements(token: string, limit = 50): Promise<Stock
   return list<StockMovement>(`/store/stock-movements?limit=${limit}`, token);
 }
 
+export function getStoreProductImages(token: string, productId: number): Promise<StoreProductImage[]> {
+  return list<StoreProductImage>(`/store/products/${productId}/images`, token);
+}
+
+export function createStoreProductImage(
+  token: string,
+  productId: number,
+  input: { url: string; altText?: string | null; position?: number; variantId?: number | null },
+): Promise<StoreProductImage> {
+  return apiFetch<StoreProductImage>(`/store/products/${productId}/images`, {
+    method: "POST",
+    body: input,
+    token,
+  }).then(extractData<StoreProductImage>);
+}
+
+export function deleteStoreProductImage(token: string, imageId: number): Promise<void> {
+  return apiFetch<void>(`/store/images/${imageId}`, { method: "DELETE", token });
+}
+
 export function getStoreMetrics(token: string): Promise<StoreMetrics> {
   return apiFetch<StoreMetrics>("/store/metrics/overview", { token }).then(extractData<StoreMetrics>);
 }
 
 /** GET /store/analytics/overview — visão geral de receita, encomendas, clientes e stock. */
 export function getStoreOverview(token: string, days = 14): Promise<StoreOverview> {
-  return apiFetch<StoreOverview>(`/store/analytics/overview?days=${days}`, { token }).then(
-    extractData<StoreOverview>,
-  );
+  return apiFetch<StoreOverview>(`/store/analytics/overview?days=${days}`, { token }).then(extractData<StoreOverview>);
 }
 
 export function createStoreCategory(token: string, input: CatalogInput): Promise<StoreCatalogItem> {
@@ -519,4 +590,115 @@ export function deliverStoreShipment(token: string, id: number): Promise<StoreSh
     method: "PATCH",
     token,
   }).then(extractData<StoreShipment>);
+}
+
+// ============================================================
+// STORE — DEVOLUÇÕES E REEMBOLSOS
+// ============================================================
+
+export function getStoreReturnPolicy(token: string): Promise<StoreReturnPolicy> {
+  return apiFetch<StoreReturnPolicy>("/store/returns/policy", { token }).then(extractData<StoreReturnPolicy>);
+}
+
+export function updateStoreReturnPolicy(
+  token: string,
+  input: Pick<StoreReturnPolicy, "enabled" | "windowDays" | "allowChangeOfMind">,
+): Promise<StoreReturnPolicy> {
+  return apiFetch<StoreReturnPolicy>("/store/returns/policy", { method: "PUT", token, body: input }).then(
+    extractData<StoreReturnPolicy>,
+  );
+}
+
+export function getStoreReturns(token: string, status?: string): Promise<StoreReturnRequest[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<StoreReturnRequest[]>(`/store/returns${query}`, { token }).then(extractData<StoreReturnRequest[]>);
+}
+
+export function getOrderReturns(token: string, orderId: number): Promise<StoreReturnRequest[]> {
+  return apiFetch<StoreReturnRequest[]>(`/store/orders/${orderId}/returns`, { token }).then(
+    extractData<StoreReturnRequest[]>,
+  );
+}
+
+export function createOrderReturn(
+  token: string,
+  orderId: number,
+  input: {
+    reason: StoreReturnReason;
+    description: string;
+    items: Array<{ orderItemId: number; quantity: number }>;
+  },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/orders/${orderId}/returns`, {
+    method: "POST",
+    token,
+    body: input,
+  }).then(extractData<StoreReturnRequest>);
+}
+
+export function reviewStoreReturn(
+  token: string,
+  id: number,
+  input: { decision: "APPROVE" | "REJECT"; note: string },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/review`, { method: "PATCH", token, body: input }).then(
+    extractData<StoreReturnRequest>,
+  );
+}
+
+export function setStoreReturnTracking(
+  token: string,
+  id: number,
+  input: { carrier: string; trackingCode: string },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/tracking`, { method: "PATCH", token, body: input }).then(
+    extractData<StoreReturnRequest>,
+  );
+}
+
+export function receiveStoreReturn(
+  token: string,
+  id: number,
+  input: {
+    carrier?: string;
+    trackingCode?: string;
+    items: Array<{ orderItemId: number; quantityReceived: number }>;
+  },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/receive`, { method: "PATCH", token, body: input }).then(
+    extractData<StoreReturnRequest>,
+  );
+}
+
+export function inspectStoreReturn(
+  token: string,
+  id: number,
+  input: {
+    items: Array<{
+      orderItemId: number;
+      quantityAccepted: number;
+      quantityRestocked: number;
+      inspectionNote?: string;
+    }>;
+  },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/inspect`, { method: "PATCH", token, body: input }).then(
+    extractData<StoreReturnRequest>,
+  );
+}
+
+export function recordStoreReturnRefund(
+  token: string,
+  id: number,
+  input: { method: string; reference: string; note: string },
+): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/refund`, { method: "PATCH", token, body: input }).then(
+    extractData<StoreReturnRequest>,
+  );
+}
+
+export function closeStoreReturn(token: string, id: number, note: string): Promise<StoreReturnRequest> {
+  return apiFetch<StoreReturnRequest>(`/store/returns/${id}/close`, { method: "PATCH", token, body: { note } }).then(
+    extractData<StoreReturnRequest>,
+  );
 }

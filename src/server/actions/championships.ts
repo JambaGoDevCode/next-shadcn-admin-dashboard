@@ -16,7 +16,9 @@ import {
   resetStandings,
   updateTournament,
 } from "@/lib/api/management";
+import { getSportModalities } from "@/lib/api/resources";
 import type {
+  SportModality,
   Tournament,
   TournamentCreateInput,
   TournamentRegistration,
@@ -32,6 +34,9 @@ export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string
 const TOURNAMENT_MESSAGES: Record<string, string> = {
   "Cannot update tournament in progress": "Não é possível editar um campeonato em curso.",
   "Finished tournaments cannot be cancelled": "Campeonatos concluídos não podem ser cancelados.",
+  "Tournament organizer must be an active organizer": "Selecione um organizador ativo para o torneio.",
+  "Tournament cannot be suspended in its current status":
+    "Só é possível suspender torneios com inscrições abertas, fechadas ou em curso.",
   "Team already registered in this tournament": "Esta equipa já está inscrita neste campeonato.",
   "Tournament is not in progress": "O campeonato não está em curso.",
   "Tournament registration must be closed before starting": "Feche as inscrições antes de iniciar o campeonato.",
@@ -67,6 +72,15 @@ export async function listTournamentsAction(): Promise<ActionResult<Tournament[]
   try {
     const token = await requireToken();
     return { ok: true, data: await getTournaments(token) };
+  } catch (error) {
+    return { ok: false, error: toErrorMessage(error) };
+  }
+}
+
+export async function listSportModalitiesAction(): Promise<ActionResult<SportModality[]>> {
+  try {
+    const token = await requireToken();
+    return { ok: true, data: await getSportModalities(token) };
   } catch (error) {
     return { ok: false, error: toErrorMessage(error) };
   }
@@ -118,9 +132,7 @@ export async function deleteTournamentAction(tournamentId: number): Promise<Acti
 
 // --- Inscrições --------------------------------------------------------------
 
-export async function listRegistrationsAction(
-  tournamentId: number,
-): Promise<ActionResult<TournamentRegistration[]>> {
+export async function listRegistrationsAction(tournamentId: number): Promise<ActionResult<TournamentRegistration[]>> {
   try {
     const token = await requireToken();
     return { ok: true, data: await getTournamentRegistrations(token, tournamentId) };
@@ -182,9 +194,7 @@ export async function listStandingsAction(tournamentId: number): Promise<ActionR
   }
 }
 
-export async function calculateStandingsAction(
-  tournamentId: number,
-): Promise<ActionResult<TournamentStanding[]>> {
+export async function calculateStandingsAction(tournamentId: number): Promise<ActionResult<TournamentStanding[]>> {
   try {
     const token = await requireToken();
     return { ok: true, data: await calculateStandings(token, tournamentId) };

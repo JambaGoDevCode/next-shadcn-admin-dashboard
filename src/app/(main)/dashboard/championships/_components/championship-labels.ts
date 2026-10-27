@@ -14,6 +14,7 @@ export const TOURNAMENT_STATUSES: ReadonlyArray<{ value: string; label: string }
   { value: "REGISTRATION_OPEN", label: "Inscrições abertas" },
   { value: "REGISTRATION_CLOSED", label: "Inscrições fechadas" },
   { value: "IN_PROGRESS", label: "Em curso" },
+  { value: "SUSPENDED", label: "Suspenso" },
   { value: "FINISHED", label: "Concluído" },
   { value: "CANCELLED", label: "Cancelado" },
 ];
@@ -37,7 +38,7 @@ export function championshipStatusLabel(status?: string | null): string {
 
 export function championshipStatusVariant(status?: string | null): ChampionshipBadgeVariant {
   if (status === "REGISTRATION_OPEN" || status === "IN_PROGRESS") return "default";
-  if (status === "REGISTRATION_CLOSED" || status === "FINISHED") return "secondary";
+  if (status === "REGISTRATION_CLOSED" || status === "FINISHED" || status === "SUSPENDED") return "secondary";
   if (status === "CANCELLED") return "destructive";
   return "outline";
 }

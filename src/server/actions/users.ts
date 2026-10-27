@@ -72,11 +72,11 @@ export async function searchUserAction(email: string): Promise<ActionResult<User
   }
 }
 
-/** Lista os usuários mais recentes (GET /users/recent — até 100, o máximo que a API expõe). */
-export async function listUsersAction(limit = 100): Promise<ActionResult<RecentUser[]>> {
+/** Lista os usuários mais recentes (GET /users/recent — até 100, com filtro opcional por tipo). */
+export async function listUsersAction(limit = 100, type?: string): Promise<ActionResult<RecentUser[]>> {
   try {
     const token = await requireToken();
-    const users = await getRecentUsers(token, limit);
+    const users = await getRecentUsers(token, limit, type);
     return { ok: true, data: users };
   } catch (error) {
     return { ok: false, error: toErrorMessage(error) };

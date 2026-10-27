@@ -25,6 +25,7 @@ import { deleteBrandAction, deleteCategoryAction } from "@/server/actions/store"
 interface StructureSectionProps {
   categories: StoreCatalogItem[];
   brands: StoreCatalogItem[];
+  visibleKinds?: StructureKind[];
   onNew: (kind: StructureKind) => void;
   onEdit: (kind: StructureKind, item: StoreCatalogItem) => void;
   /** Chamado após remoção bem-sucedida (fecha confirmações e recarrega). */
@@ -38,7 +39,14 @@ export type StructureKind = "category" | "brand";
  * de produtos, edição e remoção (bloqueada pela API enquanto houver
  * produtos associados — o erro chega por toast).
  */
-export function StructureSection({ categories, brands, onNew, onEdit, onChanged }: StructureSectionProps) {
+export function StructureSection({
+  categories,
+  brands,
+  visibleKinds = ["category", "brand"],
+  onNew,
+  onEdit,
+  onChanged,
+}: StructureSectionProps) {
   const [confirm, setConfirm] = React.useState<{ kind: StructureKind; item: StoreCatalogItem } | null>(null);
 
   async function handleDelete() {
@@ -83,9 +91,9 @@ export function StructureSection({ categories, brands, onNew, onEdit, onChanged 
         {items.map((item) => (
           <li key={item.id} className="flex items-center gap-3 px-3 py-2.5">
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">{item.name}</span>
+              <span className="truncate font-medium text-sm">{item.name}</span>
               {item.description ? (
-                <span className="text-muted-foreground truncate text-xs">{item.description}</span>
+                <span className="truncate text-muted-foreground text-xs">{item.description}</span>
               ) : null}
             </div>
             <Badge variant="secondary" className="tabular-nums">
@@ -119,38 +127,42 @@ export function StructureSection({ categories, brands, onNew, onEdit, onChanged 
 
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Categorias</CardTitle>
-              <CardDescription>Famílias de produtos do catálogo (ex.: Chuteiras, Bolas).</CardDescription>
-            </div>
-            <CardAction>
-              <Button variant="outline" size="sm" onClick={() => onNew("category")}>
-                <Plus className="size-3.5" />
-                Nova categoria
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>{renderList("category", categories)}</CardContent>
-        </Card>
+      <div className={`grid gap-6 ${visibleKinds.length === 1 ? "" : "lg:grid-cols-2"}`}>
+        {visibleKinds.includes("category") ? (
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Categorias</CardTitle>
+                <CardDescription>Famílias de produtos do catálogo (ex.: Chuteiras, Bolas).</CardDescription>
+              </div>
+              <CardAction>
+                <Button variant="outline" size="sm" onClick={() => onNew("category")}>
+                  <Plus className="size-3.5" />
+                  Nova categoria
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>{renderList("category", categories)}</CardContent>
+          </Card>
+        ) : null}
 
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Marcas</CardTitle>
-              <CardDescription>Fabricantes associados aos produtos (ex.: Nike, Molten).</CardDescription>
-            </div>
-            <CardAction>
-              <Button variant="outline" size="sm" onClick={() => onNew("brand")}>
-                <Plus className="size-3.5" />
-                Nova marca
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>{renderList("brand", brands)}</CardContent>
-        </Card>
+        {visibleKinds.includes("brand") ? (
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Marcas</CardTitle>
+                <CardDescription>Fabricantes associados aos produtos (ex.: Nike, Molten).</CardDescription>
+              </div>
+              <CardAction>
+                <Button variant="outline" size="sm" onClick={() => onNew("brand")}>
+                  <Plus className="size-3.5" />
+                  Nova marca
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>{renderList("brand", brands)}</CardContent>
+          </Card>
+        ) : null}
       </div>
 
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>

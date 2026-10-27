@@ -19,11 +19,12 @@ import {
   getPaymentStatus,
   getPlayerTournamentStats,
   getTeamTournamentStats,
-  getTournamentHistory,
   getTopAssists,
   getTopScorers,
+  getTournamentHistory,
   liftSuspension,
   listAwards,
+  listFixtureResultHistory,
   listFixtures,
   listPaymentsByTeam,
   listPaymentsByTournament,
@@ -41,7 +42,7 @@ import type {
   ApplyPenaltyInput,
   AwardUpdateInput,
   CreatePaymentInput,
-  FixtureResultInput,
+  FixtureUpdateInput,
   GenerateFixturesInput,
   LiftSuspensionInput,
   RegisterCardInput,
@@ -51,6 +52,7 @@ import type {
   TournamentAward,
   TournamentDiscipline,
   TournamentFixture,
+  TournamentFixtureResultHistory,
   TournamentHistory,
   TournamentPayment,
   TournamentPlayerStats,
@@ -65,18 +67,30 @@ export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string
 
 /** Mensagens da API traduzidas para PT (chave exata ou início da mensagem). */
 const OPS_MESSAGES: ReadonlyArray<{ match: string; message: string }> = [
-  { match: "Cannot delete an active stage", message: "Não é possível eliminar uma fase ativa. Conclua ou substitua a fase primeiro." },
+  {
+    match: "Cannot delete an active stage",
+    message: "Não é possível eliminar uma fase ativa. Conclua ou substitua a fase primeiro.",
+  },
   { match: "A stage with this order already exists", message: "Já existe uma fase com esta ordem neste campeonato." },
   { match: "New name is required", message: "O nome da fase é obrigatório." },
   { match: "Matches per team must be greater than zero", message: "Os jogos por equipa têm de ser maiores que zero." },
-  { match: "Qualified teams must be greater than zero", message: "As equipas qualificadas têm de ser maiores que zero." },
+  {
+    match: "Qualified teams must be greater than zero",
+    message: "As equipas qualificadas têm de ser maiores que zero.",
+  },
   { match: "Both home and away scores are required", message: "Indique o resultado das duas equipas (casa e fora)." },
   { match: "Scores cannot be negative", message: "Os resultados não podem ser negativos." },
   { match: "Fixture already played", message: "Este jogo já tem resultado registado." },
-  { match: "Tournament already contains fixtures", message: "O campeonato já tem jogos gerados. Use \"Regenerar jogos\" para os substituir." },
+  {
+    match: "Tournament already contains fixtures",
+    message: 'O campeonato já tem jogos gerados. Use "Regenerar jogos" para os substituir.',
+  },
   { match: "Player ID or Team ID is required", message: "Selecione um jogador ou uma equipa." },
   { match: "Registration already has a payment", message: "A inscrição já tem um pagamento registado." },
-  { match: "Finance payment is not confirmed", message: "O pagamento financeiro ainda não foi confirmado pelo sistema de pagamentos." },
+  {
+    match: "Finance payment is not confirmed",
+    message: "O pagamento financeiro ainda não foi confirmado pelo sistema de pagamentos.",
+  },
   { match: "Only paid payments can be refunded", message: "Só pagamentos liquidados podem ser reembolsados." },
   { match: "History already exists for tournament", message: "O histórico deste campeonato já foi registado." },
   { match: "Cannot create suspension without playerId", message: "A suspensão tem de indicar o jogador." },
@@ -165,6 +179,17 @@ export async function listFixturesAction(tournamentId: number): Promise<ActionRe
   }
 }
 
+export async function listFixtureResultHistoryAction(
+  tournamentId: number,
+): Promise<ActionResult<TournamentFixtureResultHistory[]>> {
+  try {
+    const token = await requireToken();
+    return { ok: true, data: await listFixtureResultHistory(token, tournamentId) };
+  } catch (error) {
+    return { ok: false, error: toErrorMessage(error) };
+  }
+}
+
 export async function generateFixturesAction(input: GenerateFixturesInput): Promise<ActionResult<TournamentFixture[]>> {
   try {
     const token = await requireToken();
@@ -187,7 +212,7 @@ export async function regenerateFixturesAction(
 
 export async function updateFixtureResultAction(
   fixtureId: number,
-  input: FixtureResultInput,
+  input: FixtureUpdateInput,
 ): Promise<ActionResult<TournamentFixture>> {
   try {
     const token = await requireToken();
@@ -320,9 +345,7 @@ export async function deleteDisciplineAction(disciplineId: number): Promise<Acti
 
 // --- Pagamentos ---------------------------------------------------------------
 
-export async function listPaymentsByTournamentAction(
-  tournamentId: number,
-): Promise<ActionResult<TournamentPayment[]>> {
+export async function listPaymentsByTournamentAction(tournamentId: number): Promise<ActionResult<TournamentPayment[]>> {
   try {
     const token = await requireToken();
     return { ok: true, data: await listPaymentsByTournament(token, tournamentId) };

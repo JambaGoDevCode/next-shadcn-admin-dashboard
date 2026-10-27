@@ -4,9 +4,10 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Team, Tournament } from "@/lib/api/types";
-import { listTournamentsAction } from "@/server/actions/championships";
-import { listTeamsAction } from "@/server/actions/management";
+import type { City, RecentUser, SportModality, Team, Tournament } from "@/lib/api/types";
+import { listSportModalitiesAction, listTournamentsAction } from "@/server/actions/championships";
+import { listCitiesAction, listTeamsAction } from "@/server/actions/management";
+import { listUsersAction } from "@/server/actions/users";
 
 import { ChampionshipDetailsCard } from "./championship-details-card";
 import { ChampionshipRegistrationsCard } from "./championship-registrations-card";
@@ -17,12 +18,16 @@ import { ChampionshipsListCard } from "./championships-list-card";
  * Gestão de campeonatos: lista filtrável (GET /tournaments), seleção de linha e a
  * pilha de detalhe com ciclo de vida de estado, inscrições e classificação.
  */
-export function ChampionshipsAdmin() {
+export function ChampionshipsAdmin({ approvalOnly = false }: { approvalOnly?: boolean }) {
   const [tournaments, setTournaments] = useState<Tournament[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [cities, setCities] = useState<City[]>([]);
+  const [modalities, setModalities] = useState<SportModality[]>([]);
+  const [organizers, setOrganizers] = useState<{ id: number; name: string }[]>([]);
+  const [organizerOptions, setOrganizerOptions] = useState<{ id: number; name: string }[]>([]);
+  const [_refreshKey, setRefreshKey] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -34,8 +39,14 @@ export function ChampionshipsAdmin() {
     let cancelled = false;
     setListLoading(true);
 
-    Promise.all([listTournamentsAction(), listTeamsAction()])
-      .then(([tournamentsResult, teamsResult]) => {
+    Promise.all([
+      listTournamentsAction(),
+      listTeamsAction(),
+      listCitiesAction(),
+      listSportModalitiesAction(),
+      listUsersAction(100, "ORGANIZER"),
+    ])
+      .then(([tournamentsResult, teamsResult, citiesResult, modalitiesResult, organizersResult]) => {
         if (cancelled) return;
         if (tournamentsResult.ok) {
           setTournaments(tournamentsResult.data);
@@ -45,12 +56,21 @@ export function ChampionshipsAdmin() {
           setListError(tournamentsResult.error);
         }
         setTeams(teamsResult.ok ? teamsResult.data : []);
+        setCities(citiesResult.ok ? citiesResult.data : []);
+        setModalities(modalitiesResult.ok ? modalitiesResult.data : []);
+        const users: RecentUser[] = organizersResult.ok ? organizersResult.data : [];
+        setOrganizers(users.map(({ id, name }) => ({ id, name })));
+        setOrganizerOptions(users.filter((user) => user.status === "ACTIVE").map(({ id, name }) => ({ id, name })));
       })
       .catch(() => {
         if (cancelled) return;
         setTournaments(null);
         setListError("Não foi possível carregar os campeonatos.");
         setTeams([]);
+        setCities([]);
+        setModalities([]);
+        setOrganizers([]);
+        setOrganizerOptions([]);
       })
       .finally(() => {
         if (!cancelled) setListLoading(false);
@@ -59,13 +79,16 @@ export function ChampionshipsAdmin() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, []);
 
   // Seleciona o primeiro campeonato quando nada está selecionado.
   useEffect(() => {
-    if (!tournaments || tournaments.length === 0 || selectedId !== null) return;
-    setSelectedId(tournaments[0].id);
-  }, [tournaments, selectedId]);
+    if (!tournaments || selectedId !== null) return;
+    const firstAvailable = approvalOnly
+      ? tournaments.find((tournament) => tournament.status === "DRAFT")
+      : tournaments[0];
+    if (firstAvailable) setSelectedId(firstAvailable.id);
+  }, [tournaments, selectedId, approvalOnly]);
 
   const selectedTournament = tournaments?.find((tournament) => tournament.id === selectedId) ?? null;
 
@@ -86,11 +109,15 @@ export function ChampionshipsAdmin() {
     [refresh],
   );
 
-  const handleUpdated = useCallback((tournament: Tournament) => {
-    setTournaments((current) =>
-      current ? current.map((row) => (row.id === tournament.id ? tournament : row)) : current,
-    );
-  }, []);
+  const handleUpdated = useCallback(
+    (tournament: Tournament) => {
+      setTournaments((current) =>
+        current ? current.map((row) => (row.id === tournament.id ? tournament : row)) : current,
+      );
+      if (approvalOnly && tournament.status !== "DRAFT") setSelectedId(null);
+    },
+    [approvalOnly],
+  );
 
   /** Exclusão — a API remove o campeonato da listagem; a seleção avança para o vizinho. */
   const handleDeleted = useCallback(
@@ -118,31 +145,39 @@ export function ChampionshipsAdmin() {
             <ChampionshipDetailsCard
               tournament={selectedTournament}
               teams={teams}
+              cities={cities}
+              modalities={modalities}
+              organizers={organizers}
+              organizerOptions={organizerOptions}
               onChanged={handleUpdated}
               onDeleted={handleDeleted}
             />
           </CardContent>
         </Card>
 
-        <Card key={`registrations-${selectedTournament.id}`}>
-          <CardHeader>
-            <CardTitle>Inscrições</CardTitle>
-            <CardDescription>Equipas inscritas e aprovações.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <ChampionshipRegistrationsCard tournamentId={selectedTournament.id} teams={teams} />
-          </CardContent>
-        </Card>
+        {!approvalOnly && (
+          <Card key={`registrations-${selectedTournament.id}`}>
+            <CardHeader>
+              <CardTitle>Inscrições</CardTitle>
+              <CardDescription>Equipas inscritas e aprovações.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <ChampionshipRegistrationsCard tournamentId={selectedTournament.id} teams={teams} />
+            </CardContent>
+          </Card>
+        )}
 
-        <Card key={`standings-${selectedTournament.id}`}>
-          <CardHeader>
-            <CardTitle>Classificação</CardTitle>
-            <CardDescription>Tabela de classificação do campeonato.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <ChampionshipStandingsCard tournamentId={selectedTournament.id} teams={teams} />
-          </CardContent>
-        </Card>
+        {!approvalOnly && (
+          <Card key={`standings-${selectedTournament.id}`}>
+            <CardHeader>
+              <CardTitle>Classificação</CardTitle>
+              <CardDescription>Tabela de classificação do campeonato.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <ChampionshipStandingsCard tournamentId={selectedTournament.id} teams={teams} />
+            </CardContent>
+          </Card>
+        )}
       </>
     );
   } else if (listLoading) {
@@ -159,8 +194,12 @@ export function ChampionshipsAdmin() {
   return (
     <div className="flex flex-col gap-4">
       <ChampionshipsListCard
+        approvalOnly={approvalOnly}
+        cities={cities}
         error={listError}
         loading={listLoading}
+        modalities={modalities}
+        organizers={organizers}
         onCreated={handleCreated}
         onRefresh={refresh}
         onRetry={refresh}

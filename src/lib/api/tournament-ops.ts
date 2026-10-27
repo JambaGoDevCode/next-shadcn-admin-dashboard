@@ -3,7 +3,7 @@ import type {
   ApplyPenaltyInput,
   AwardUpdateInput,
   CreatePaymentInput,
-  FixtureResultInput,
+  FixtureUpdateInput,
   GenerateFixturesInput,
   LiftSuspensionInput,
   RegisterCardInput,
@@ -14,6 +14,7 @@ import type {
   TournamentAward,
   TournamentDiscipline,
   TournamentFixture,
+  TournamentFixtureResultHistory,
   TournamentHistory,
   TournamentHistoryEntry,
   TournamentPayment,
@@ -189,11 +190,19 @@ export async function regenerateFixtures(token: string, input: GenerateFixturesI
 export function updateFixtureResult(
   token: string,
   fixtureId: number,
-  input: FixtureResultInput,
+  input: FixtureUpdateInput,
 ): Promise<TournamentFixture> {
   return apiFetch<TournamentFixture>(`/tournament-fixtures/${fixtureId}`, { method: "PUT", body: input, token }).then(
     (payload) => extractData<TournamentFixture>(payload),
   );
+}
+
+export async function listFixtureResultHistory(
+  token: string,
+  tournamentId: number,
+): Promise<TournamentFixtureResultHistory[]> {
+  const payload = await apiFetch<unknown>(`/tournament-fixtures/tournament/${tournamentId}/result-history`, { token });
+  return toArray<TournamentFixtureResultHistory>(payload);
 }
 
 export async function deleteFixture(token: string, fixtureId: number): Promise<void> {

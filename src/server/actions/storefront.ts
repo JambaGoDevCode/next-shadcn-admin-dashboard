@@ -2,11 +2,22 @@
 
 import { apiFetch, extractData } from "@/lib/api/client";
 import { getCities } from "@/lib/api/resources";
-import type { City, StoreCatalogItem, StoreOrderDetail, StoreProduct } from "@/lib/api/types";
+import type {
+  City,
+  StoreCatalogItem,
+  StoreOrderDetail,
+  StoreProduct,
+  StoreReturnPolicy,
+  StoreReturnReason,
+  StoreReturnRequest,
+} from "@/lib/api/types";
 import { getSessionTokens } from "@/lib/auth/session";
 
-export interface PublicStoreProduct extends Omit<StoreProduct, "variants" | "variantCount" | "stockUnits" | "updatedAt"> {
-  variants: Array<Pick<StoreProduct["variants"][number], "id" | "productId" | "size" | "color" | "price" | "available">>;
+export interface PublicStoreProduct
+  extends Omit<StoreProduct, "variants" | "variantCount" | "stockUnits" | "updatedAt"> {
+  variants: Array<
+    Pick<StoreProduct["variants"][number], "id" | "productId" | "size" | "color" | "price" | "available">
+  >;
 }
 
 export interface StoreCartItem {
@@ -49,11 +60,13 @@ async function withSession<T>(operation: (token: string) => Promise<T>): Promise
   }
 }
 
-export async function getPublicStoreCatalogAction(): Promise<StorefrontResult<{
-  products: PublicStoreProduct[];
-  categories: StoreCatalogItem[];
-  brands: StoreCatalogItem[];
-}>> {
+export async function getPublicStoreCatalogAction(): Promise<
+  StorefrontResult<{
+    products: PublicStoreProduct[];
+    categories: StoreCatalogItem[];
+    brands: StoreCatalogItem[];
+  }>
+> {
   try {
     const [products, categories, brands] = await Promise.all([
       apiFetch<PublicStoreProduct[]>("/store/catalog/products"),
@@ -88,12 +101,22 @@ export async function getStoreCartAction(): Promise<StorefrontResult<StoreCart>>
   return withSession((token) => apiFetch<StoreCart>("/store/carts/me", { token }));
 }
 
-export async function addStoreCartItemAction(variantId: number, quantity: number): Promise<StorefrontResult<StoreCart>> {
-  return withSession((token) => apiFetch<StoreCart>("/store/carts/items", { method: "POST", token, body: { variantId, quantity } }));
+export async function addStoreCartItemAction(
+  variantId: number,
+  quantity: number,
+): Promise<StorefrontResult<StoreCart>> {
+  return withSession((token) =>
+    apiFetch<StoreCart>("/store/carts/items", { method: "POST", token, body: { variantId, quantity } }),
+  );
 }
 
-export async function updateStoreCartItemAction(itemId: number, quantity: number): Promise<StorefrontResult<StoreCart>> {
-  return withSession((token) => apiFetch<StoreCart>(`/store/carts/items/${itemId}`, { method: "PUT", token, body: { quantity } }));
+export async function updateStoreCartItemAction(
+  itemId: number,
+  quantity: number,
+): Promise<StorefrontResult<StoreCart>> {
+  return withSession((token) =>
+    apiFetch<StoreCart>(`/store/carts/items/${itemId}`, { method: "PUT", token, body: { quantity } }),
+  );
 }
 
 export async function removeStoreCartItemAction(itemId: number): Promise<StorefrontResult<StoreCart>> {
@@ -104,8 +127,15 @@ export async function getStoreCitiesAction(): Promise<StorefrontResult<City[]>> 
   return withSession((token) => getCities(token));
 }
 
-export async function getShippingQuoteAction(subtotal: number): Promise<StorefrontResult<{ amount: number; method: string; freeShipping: boolean }>> {
-  return withSession((token) => apiFetch<{ amount: number; method: string; freeShipping: boolean }>(`/store/orders/shipping-quote?subtotal=${encodeURIComponent(subtotal)}`, { token }));
+export async function getShippingQuoteAction(
+  subtotal: number,
+): Promise<StorefrontResult<{ amount: number; method: string; freeShipping: boolean }>> {
+  return withSession((token) =>
+    apiFetch<{ amount: number; method: string; freeShipping: boolean }>(
+      `/store/orders/shipping-quote?subtotal=${encodeURIComponent(subtotal)}`,
+      { token },
+    ),
+  );
 }
 
 export interface StoreShippingAddress {
@@ -119,11 +149,47 @@ export interface StoreShippingAddress {
 export async function createStoreOrderAction(
   shippingAddress: StoreShippingAddress,
 ): Promise<StorefrontResult<StoreOrderDetail>> {
-  return withSession((token) => apiFetch<StoreOrderDetail>("/store/orders", { method: "POST", token, body: { shippingAddress } }));
+  return withSession((token) =>
+    apiFetch<StoreOrderDetail>("/store/orders", { method: "POST", token, body: { shippingAddress } }),
+  );
 }
 
 export async function getStoreOrderAction(orderId: number): Promise<StorefrontResult<StoreOrderDetail>> {
   return withSession((token) => apiFetch<StoreOrderDetail>(`/store/orders/${orderId}`, { token }));
+}
+
+export async function getStoreReturnPolicyAction(): Promise<StorefrontResult<StoreReturnPolicy>> {
+  return withSession((token) => apiFetch<StoreReturnPolicy>("/store/returns/policy", { token }));
+}
+
+export async function getOrderReturnsAction(orderId: number): Promise<StorefrontResult<StoreReturnRequest[]>> {
+  return withSession((token) => apiFetch<StoreReturnRequest[]>(`/store/orders/${orderId}/returns`, { token }));
+}
+
+export async function createStoreReturnAction(
+  orderId: number,
+  input: {
+    reason: StoreReturnReason;
+    description: string;
+    items: Array<{ orderItemId: number; quantity: number }>;
+  },
+): Promise<StorefrontResult<StoreReturnRequest>> {
+  return withSession((token) =>
+    apiFetch<StoreReturnRequest>(`/store/orders/${orderId}/returns`, {
+      method: "POST",
+      token,
+      body: input,
+    }),
+  );
+}
+
+export async function setStoreReturnTrackingAction(
+  id: number,
+  input: { carrier: string; trackingCode: string },
+): Promise<StorefrontResult<StoreReturnRequest>> {
+  return withSession((token) =>
+    apiFetch<StoreReturnRequest>(`/store/returns/${id}/tracking`, { method: "PATCH", token, body: input }),
+  );
 }
 
 export interface StorePaymentResult {
@@ -134,9 +200,20 @@ export interface StorePaymentResult {
 }
 
 export async function createStorePaymentAction(orderId: number): Promise<StorefrontResult<StorePaymentResult>> {
-  return withSession((token) => apiFetch<StorePaymentResult>(`/store/orders/${orderId}/payment`, { method: "POST", token }));
+  return withSession((token) =>
+    apiFetch<StorePaymentResult>(`/store/orders/${orderId}/payment`, { method: "POST", token }),
+  );
 }
 
-export async function confirmStorePaymentAction(orderId: number, paymentId: number): Promise<StorefrontResult<StoreOrderDetail>> {
-  return withSession((token) => apiFetch<StoreOrderDetail>(`/store/orders/${orderId}/confirm-payment`, { method: "POST", token, body: { paymentId } }));
+export async function confirmStorePaymentAction(
+  orderId: number,
+  paymentId: number,
+): Promise<StorefrontResult<StoreOrderDetail>> {
+  return withSession((token) =>
+    apiFetch<StoreOrderDetail>(`/store/orders/${orderId}/confirm-payment`, {
+      method: "POST",
+      token,
+      body: { paymentId },
+    }),
+  );
 }

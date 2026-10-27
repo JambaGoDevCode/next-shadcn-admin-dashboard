@@ -29,7 +29,14 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Team, Tournament, TournamentStatusTransition } from "@/lib/api/types";
+import type {
+  City,
+  SportModality,
+  Team,
+  Tournament,
+  TournamentResumableStatus,
+  TournamentStatusTransition,
+} from "@/lib/api/types";
 import { formatDate, formatDateTime } from "@/lib/format";
 import {
   changeTournamentStatusAction,
@@ -37,16 +44,15 @@ import {
   updateTournamentAction,
 } from "@/server/actions/championships";
 
-import {
-  championshipStatusLabel,
-  championshipStatusVariant,
-  tournamentTypeLabel,
-} from "./championship-labels";
+import { championshipStatusLabel, championshipStatusVariant, tournamentTypeLabel } from "./championship-labels";
 
 interface ChampionshipDetailsCardProps {
   tournament: Tournament;
   /** Equipas ativas — referência repassada pelo cartão-mãe. */
   teams: Team[];
+  cities: City[];
+  modalities: SportModality[];
+  organizers: { id: number; name: string }[];
   onChanged: (tournament: Tournament) => void;
   /** Chamado após a exclusão — a lista remove a linha e move a seleção. */
   onDeleted: (tournamentId: number) => void;
@@ -60,27 +66,43 @@ interface ChampionshipTransition {
 
 /** Transições de estado disponíveis por estado atual (PATCH /tournaments/:id/status). */
 const STATUS_TRANSITIONS: Partial<Record<string, ReadonlyArray<ChampionshipTransition>>> = {
-  DRAFT: [{ label: "Abrir inscrições", next: "REGISTRATION_OPEN", variant: "outline" }],
+  DRAFT: [{ label: "Aprovar e publicar", next: "REGISTRATION_OPEN", variant: "outline" }],
   REGISTRATION_OPEN: [
     { label: "Fechar inscrições", next: "REGISTRATION_CLOSED", variant: "outline" },
+    { label: "Suspender campeonato", next: "SUSPENDED", variant: "outline" },
     { label: "Cancelar campeonato", next: "CANCELLED", variant: "destructive" },
   ],
   REGISTRATION_CLOSED: [
     { label: "Reabrir inscrições", next: "REGISTRATION_OPEN", variant: "outline" },
     { label: "Iniciar campeonato", next: "IN_PROGRESS", variant: "default" },
+    { label: "Suspender campeonato", next: "SUSPENDED", variant: "outline" },
     { label: "Cancelar campeonato", next: "CANCELLED", variant: "destructive" },
   ],
   IN_PROGRESS: [
     { label: "Concluir campeonato", next: "FINISHED", variant: "default" },
+    { label: "Suspender campeonato", next: "SUSPENDED", variant: "outline" },
     { label: "Cancelar campeonato", next: "CANCELLED", variant: "destructive" },
   ],
+};
+
+const RESUME_LABEL: Record<TournamentResumableStatus, string> = {
+  REGISTRATION_OPEN: "Retomar inscrições abertas",
+  REGISTRATION_CLOSED: "Retomar inscrições fechadas",
+  IN_PROGRESS: "Retomar campeonato",
 };
 
 /**
  * Ficha do campeonato: dados, regras e ciclo de vida — edição (PUT), transições
  * de estado (PATCH status) e exclusão (bloqueada pela API quando há dependências).
  */
-export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: ChampionshipDetailsCardProps) {
+export function ChampionshipDetailsCard({
+  tournament,
+  cities,
+  modalities,
+  organizers,
+  onChanged,
+  onDeleted,
+}: ChampionshipDetailsCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState(tournament.name);
   const [description, setDescription] = useState(tournament.description ?? "");
@@ -90,7 +112,16 @@ export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: Ch
   const [pendingNext, setPendingNext] = useState<TournamentStatusTransition | null>(null);
 
   const editDisabled = tournament.status === "IN_PROGRESS";
-  const transitions = STATUS_TRANSITIONS[tournament.status] ?? [];
+  const transitions =
+    tournament.status === "SUSPENDED" && tournament.suspendedFromStatus
+      ? [
+          {
+            label: RESUME_LABEL[tournament.suspendedFromStatus],
+            next: tournament.suspendedFromStatus,
+            variant: "default" as const,
+          },
+        ]
+      : (STATUS_TRANSITIONS[tournament.status] ?? []);
 
   function handleSave() {
     if (name.trim().length < 3) {
@@ -155,6 +186,30 @@ export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: Ch
           <p className="font-medium text-sm">{tournamentTypeLabel(tournament.type)}</p>
         </div>
         <div className="space-y-1">
+          <p className="text-muted-foreground text-xs">Modalidade</p>
+          <p className="font-medium text-sm">
+            {modalities.find((modality) => modality.id === tournament.modalityId)?.name ?? "—"}
+          </p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-xs">Cidade</p>
+          <p className="font-medium text-sm">
+            {(() => {
+              const city = cities.find((option) => option.id === tournament.cityId);
+              return city ? `${city.name}${city.state ? ` · ${city.state}` : ""}` : "—";
+            })()}
+          </p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-xs">Organizador</p>
+          <p className="font-medium text-sm">
+            {tournament.organizerId
+              ? (organizers.find((organizer) => organizer.id === tournament.organizerId)?.name ??
+                `Organizador #${tournament.organizerId}`)
+              : "—"}
+          </p>
+        </div>
+        <div className="space-y-1">
           <p className="text-muted-foreground text-xs">Estado</p>
           <Badge variant={championshipStatusVariant(tournament.status)}>
             {championshipStatusLabel(tournament.status)}
@@ -202,7 +257,7 @@ export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: Ch
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-2 border-border border-t pt-4">
         <Button size="sm" variant="outline" disabled={isPending || editDisabled} onClick={() => setEditOpen(true)}>
           <Pencil /> Editar
         </Button>
@@ -216,8 +271,8 @@ export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: Ch
             <AlertDialogHeader>
               <AlertDialogTitle>Eliminar campeonato {tournament.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Se o campeonato tiver inscrições, classificação ou jogos associados, a API bloqueia a eliminação —
-                nesse caso cancele-o.
+                Se o campeonato tiver inscrições, classificação ou jogos associados, a API bloqueia a eliminação — nesse
+                caso cancele-o.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -234,7 +289,7 @@ export function ChampionshipDetailsCard({ tournament, onChanged, onDeleted }: Ch
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-2 border-border border-t pt-4">
         {transitions.length > 0 ? (
           transitions.map((action) => (
             <Button

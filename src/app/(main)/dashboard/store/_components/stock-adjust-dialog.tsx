@@ -30,15 +30,16 @@ interface StockAdjustDialogProps {
 }
 
 const TYPE_OPTIONS: Array<{ value: StockMovementType; label: string; hint: string }> = [
-  { value: "IN", label: "Entrada", hint: "unidades somadas ao stock" },
-  { value: "OUT", label: "Saída", hint: "unidades removidas do stock" },
+  { value: "IN", label: "Entrada", hint: "reposição de unidades" },
+  { value: "OUT", label: "Saída", hint: "unidades retiradas do stock" },
   { value: "ADJUST", label: "Contagem", hint: "define o novo total físico" },
+  { value: "RETURN", label: "Devolução", hint: "unidades devolvidas e aceites no stock" },
+  { value: "LOSS", label: "Perda", hint: "unidades perdidas ou danificadas" },
 ];
 
 /**
- * Diálogo de ajuste de stock de uma variante: entrada (IN), saída
- * (OUT) ou contagem física (ADJUST), com atualização opcional do
- * limiar de alerta (minStock) e pré-visualização do resultado.
+ * Diálogo de stock por variante. Todos os movimentos manuais exigem
+ * motivo e ficam registados no histórico de auditoria.
  */
 export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdjustDialogProps) {
   const [saving, setSaving] = React.useState(false);
@@ -59,11 +60,12 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
 
   const parsedQuantity = Number(quantity);
   const hasQuantity = quantity.trim() !== "";
+  const minQuantity = type === "ADJUST" ? 0 : 1;
   const preview =
-    row && hasQuantity && Number.isInteger(parsedQuantity) && parsedQuantity > 0
-      ? type === "IN"
+    row && hasQuantity && Number.isInteger(parsedQuantity) && parsedQuantity >= minQuantity
+      ? type === "IN" || type === "RETURN"
         ? row.quantity + parsedQuantity
-        : type === "OUT"
+        : type === "OUT" || type === "LOSS"
           ? row.quantity - parsedQuantity
           : parsedQuantity
       : null;
@@ -72,8 +74,27 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
     event.preventDefault();
     if (!row || saving) return;
 
-    if (!hasQuantity || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
-      toast.error("Informe uma quantidade inteira maior que 0.");
+    if (!hasQuantity || !Number.isInteger(parsedQuantity) || parsedQuantity < minQuantity) {
+      toast.error(
+        type === "ADJUST"
+          ? "Informe um total físico inteiro não negativo."
+          : "Informe uma quantidade inteira maior que 0.",
+      );
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error("Indique o motivo do movimento de stock.");
+      return;
+    }
+
+    if ((type === "OUT" || type === "LOSS") && parsedQuantity > row.available) {
+      toast.error(`Stock disponível insuficiente: ${row.available} unidades.`);
+      return;
+    }
+
+    if (type === "ADJUST" && parsedQuantity < row.reserved) {
+      toast.error(`O novo total não pode ser inferior às ${row.reserved} unidades reservadas.`);
       return;
     }
 
@@ -88,7 +109,7 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
     const result = await adjustStockAction(row.variantId, {
       type,
       quantity: parsedQuantity,
-      reason: reason.trim() || null,
+      reason: reason.trim(),
       minStock: minStock.trim() === "" ? row.minStock : parsedMinStock,
     });
 
@@ -99,11 +120,7 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
       return;
     }
 
-    toast.success(
-      type === "OUT"
-        ? `Saída registada — stock agora em ${result.data.quantity} unidades.`
-        : `Stock atualizado: ${result.data.quantity} unidades.`,
-    );
+    toast.success(`Movimento registado — stock agora em ${result.data.quantity} unidades.`);
     onSaved();
   }
 
@@ -122,15 +139,15 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
             <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/40 p-3 text-center">
               <div>
                 <p className="text-muted-foreground text-xs">Físico</p>
-                <p className="text-lg leading-tight font-medium tabular-nums">{row.quantity}</p>
+                <p className="font-medium text-lg tabular-nums leading-tight">{row.quantity}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Reservado</p>
-                <p className="text-lg leading-tight font-medium tabular-nums">{row.reserved}</p>
+                <p className="font-medium text-lg tabular-nums leading-tight">{row.reserved}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Preço</p>
-                <p className="text-lg leading-tight font-medium tabular-nums">{formatKz(row.price)}</p>
+                <p className="font-medium text-lg tabular-nums leading-tight">{formatKz(row.price)}</p>
               </div>
             </div>
 
@@ -159,7 +176,7 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
                 <Input
                   id="adjust-quantity"
                   type="number"
-                  min={1}
+                  min={type === "ADJUST" ? 0 : 1}
                   step={1}
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
@@ -167,18 +184,19 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
                   required
                 />
                 <p className="text-muted-foreground text-xs tabular-nums">
-                  {preview !== null ? `Novo stock: ${preview} unidades` : "Disponível: " + row.available}
+                  {preview !== null ? `Novo stock: ${preview} unidades` : `Disponível: ${row.available}`}
                 </p>
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="adjust-reason">Motivo (opcional)</Label>
+                <Label htmlFor="adjust-reason">Motivo (obrigatório)</Label>
                 <Input
                   id="adjust-reason"
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  placeholder="Reposição, venda balcão, contagem..."
+                  placeholder="Reposição, devolução, perda, contagem..."
                   maxLength={200}
+                  required
                 />
               </div>
 
@@ -202,7 +220,7 @@ export function StockAdjustDialog({ open, onOpenChange, row, onSaved }: StockAdj
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="animate-spin" /> : null}
-                Registar ajuste
+                Registar movimento
               </Button>
             </DialogFooter>
           </form>

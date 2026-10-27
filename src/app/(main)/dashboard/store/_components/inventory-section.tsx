@@ -15,6 +15,7 @@ import {
   formatDateTime,
   formatKz,
   plural,
+  stockMovementDelta,
   stockMovementLabel,
   stockMovementTone,
   stockStateLabel,
@@ -24,6 +25,7 @@ import {
 interface InventorySectionProps {
   inventory: InventoryRow[];
   movements: StockMovement[];
+  showMovements?: boolean;
   onAdjust: (row: InventoryRow) => void;
 }
 
@@ -31,7 +33,7 @@ interface InventorySectionProps {
  * Inventário por variante (pesquisa e alertas de stock) seguido do
  * histórico de movimentos de auditoria.
  */
-export function InventorySection({ inventory, movements, onAdjust }: InventorySectionProps) {
+export function InventorySection({ inventory, movements, showMovements = true, onAdjust }: InventorySectionProps) {
   const [search, setSearch] = React.useState("");
   const [alertsOnly, setAlertsOnly] = React.useState(false);
 
@@ -137,10 +139,10 @@ export function InventorySection({ inventory, movements, onAdjust }: InventorySe
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs">{row.sku}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">{row.sku}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatKz(row.price)}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{row.available}</TableCell>
-                    <TableCell className="text-muted-foreground text-right tabular-nums">{row.reserved}</TableCell>
+                    <TableCell className="text-right text-muted-foreground tabular-nums">{row.reserved}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.quantity}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={stockStateTone(row)}>
@@ -167,79 +169,82 @@ export function InventorySection({ inventory, movements, onAdjust }: InventorySe
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div>
-            <CardTitle>Movimentos recentes</CardTitle>
-            <CardDescription>
-              Entradas, saídas e ajustes de contagem — registo de auditoria por variante.
-            </CardDescription>
-          </div>
-          <CardAction>
-            <Badge variant="secondary">{movements.length}</Badge>
-          </CardAction>
-        </CardHeader>
+      {showMovements ? (
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Movimentos recentes</CardTitle>
+              <CardDescription>
+                Entradas, saídas, contagens, devoluções e perdas — registo de auditoria por variante.
+              </CardDescription>
+            </div>
+            <CardAction>
+              <Badge variant="secondary">{movements.length}</Badge>
+            </CardAction>
+          </CardHeader>
 
-        <CardContent>
-          {movements.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <PackagePlus />
-                </EmptyMedia>
-                <EmptyTitle>Sem movimentos registados</EmptyTitle>
-                <EmptyDescription>
-                  Os ajustes de stock feitos por aqui ficam registados neste histórico.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent />
-            </Empty>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Δ Unidades</TableHead>
-                  <TableHead className="text-right">Resultado</TableHead>
-                  <TableHead>Motivo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movements.map((movement) => (
-                  <TableRow key={movement.id}>
-                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
-                      {formatDateTime(movement.createdAt)}
-                    </TableCell>
-                    <TableCell className="font-medium">{movement.productName}</TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs">{movement.sku}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={stockMovementTone(movement.type)}>
-                        {stockMovementLabel(movement.type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-medium tabular-nums ${
-                        movement.quantity >= 0
-                          ? "text-emerald-700 dark:text-emerald-300"
-                          : "text-red-700 dark:text-red-300"
-                      }`}
-                    >
-                      {movement.quantity >= 0 ? `+${movement.quantity}` : movement.quantity}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{movement.resultQuantity}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-40 truncate text-xs">
-                      {movement.reason ?? "—"}
-                    </TableCell>
+          <CardContent>
+            {movements.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PackagePlus />
+                  </EmptyMedia>
+                  <EmptyTitle>Sem movimentos registados</EmptyTitle>
+                  <EmptyDescription>
+                    Os movimentos feitos no inventário ficam registados neste histórico.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent />
+              </Empty>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Δ Unidades</TableHead>
+                    <TableHead className="text-right">Resultado</TableHead>
+                    <TableHead>Motivo</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {movements.map((movement) => {
+                    const delta = stockMovementDelta(movement.type, movement.quantity);
+                    return (
+                      <TableRow key={movement.id}>
+                        <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
+                          {formatDateTime(movement.createdAt)}
+                        </TableCell>
+                        <TableCell className="font-medium">{movement.productName}</TableCell>
+                        <TableCell className="font-mono text-muted-foreground text-xs">{movement.sku}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={stockMovementTone(movement.type)}>
+                            {stockMovementLabel(movement.type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-medium tabular-nums ${
+                            delta >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"
+                          }`}
+                        >
+                          {delta >= 0 ? `+${delta}` : delta}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{movement.resultQuantity}</TableCell>
+                        <TableCell className="max-w-40 truncate text-muted-foreground text-xs">
+                          {movement.reason ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

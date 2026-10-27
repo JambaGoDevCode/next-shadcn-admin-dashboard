@@ -73,13 +73,33 @@ export async function getSessionTokens(): Promise<SessionTokens> {
 
 /** Returns the JWT `exp` claim in milliseconds, or null when the token cannot be decoded. */
 export function readTokenExpiration(token: string): number | null {
+  const claims = readTokenClaims(token);
+  return claims.exp;
+}
+
+export interface SessionClaims {
+  userId: string | null;
+  roles: string[];
+  permissions: string[];
+  exp: number | null;
+}
+
+/** Decodifica as claims do access token JWT (utilizador, papéis e permissões granulares). */
+export function readTokenClaims(token: string): SessionClaims {
   const parts = token.split(".");
-  if (parts.length < 2) return null;
+  if (parts.length < 2) return { userId: null, roles: [], permissions: [], exp: null };
   try {
     const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8")) as Record<string, unknown>;
-    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+    const asStringArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+    return {
+      userId: typeof payload.sub === "string" ? payload.sub : null,
+      roles: asStringArray(payload.roles),
+      permissions: asStringArray(payload.permissions),
+      exp: typeof payload.exp === "number" ? payload.exp * 1000 : null,
+    };
   } catch {
-    return null;
+    return { userId: null, roles: [], permissions: [], exp: null };
   }
 }
 

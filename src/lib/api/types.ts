@@ -46,6 +46,12 @@ export interface City {
   updatedAt?: string;
 }
 
+export interface SportModality {
+  id: number;
+  name: string;
+  isActive?: boolean;
+}
+
 export interface Team {
   id: number;
   name: string;
@@ -111,6 +117,90 @@ export interface Match {
   homeScore?: number | null;
   awayScore?: number | null;
   isActive?: boolean;
+  homeAcceptedAt?: string | null;
+  awayAcceptedAt?: string | null;
+  resultValidationStatus?: MatchResultValidationStatus;
+}
+
+export type MatchResultValidationStatus = "PENDING" | "VALIDATED" | "DISPUTED";
+
+export type MatchDisputeCategory = "RESULT" | "CONDUCT";
+export type MatchDisputeStatus = "OPEN" | "RESOLVED";
+export type MatchDisputeDecision = "MAINTAIN" | "CORRECT" | "UPHOLD" | "DISMISS";
+
+export interface MatchDispute {
+  id: number;
+  matchId: number;
+  reportingTeamId: number;
+  reporterUserId: number;
+  category: MatchDisputeCategory;
+  reason: string;
+  evidenceUrl: string | null;
+  status: MatchDisputeStatus;
+  originalHomeScore: number;
+  originalAwayScore: number;
+  decision: MatchDisputeDecision | null;
+  finalHomeScore: number | null;
+  finalAwayScore: number | null;
+  resolutionNote: string | null;
+  resolvedBy: number | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MatchDisputeInput {
+  teamId: number;
+  category: MatchDisputeCategory;
+  reason: string;
+  evidenceUrl?: string;
+}
+
+export type MatchDisputeResolutionInput =
+  | { decision: "MAINTAIN"; resolutionNote: string }
+  | { decision: "CORRECT"; homeScore: number; awayScore: number; resolutionNote: string }
+  | { decision: "UPHOLD" | "DISMISS"; resolutionNote: string };
+
+export interface MatchmakingSearchAttempt {
+  id: number;
+  teamId: number;
+  cityId: number;
+  status: "PROCESSING" | "MATCHED" | "NO_MATCH" | "FAILED";
+  candidateCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export type MatchmakingQueueJobStatus = "waiting" | "active" | "delayed" | "failed" | "completed" | "paused";
+
+export interface MatchmakingQueueJob {
+  id: string;
+  teamId: number;
+  status: MatchmakingQueueJobStatus;
+  enqueuedAt: string;
+  processedAt: string | null;
+  finishedAt: string | null;
+  failureReason: string | null;
+}
+
+export interface MatchmakingQueueSnapshot {
+  available: boolean;
+  error: string | null;
+  counts: Record<MatchmakingQueueJobStatus, number>;
+  jobs: MatchmakingQueueJob[];
+}
+
+export interface MatchmakingOperations {
+  counts: {
+    processing: number;
+    matched: number;
+    unmatched: number;
+    failed: number;
+    pendingInvitations: number;
+  };
+  queue: MatchmakingQueueSnapshot;
+  attempts: MatchmakingSearchAttempt[];
+  invitations: MatchmakingMatch[];
 }
 
 export interface Booking {
@@ -182,6 +272,10 @@ export interface Tournament {
   name: string;
   description: string | null;
   type: string;
+  modalityId?: number | null;
+  cityId?: number | null;
+  organizerId?: number | null;
+  suspendedFromStatus?: TournamentResumableStatus | null;
   period: { startDate: string; endDate: string };
   rules: TournamentRules;
   /** DRAFT | REGISTRATION_OPEN | REGISTRATION_CLOSED | IN_PROGRESS | FINISHED | CANCELLED */
@@ -222,8 +316,11 @@ export type TournamentStatusTransition =
   | "REGISTRATION_OPEN"
   | "REGISTRATION_CLOSED"
   | "IN_PROGRESS"
+  | "SUSPENDED"
   | "FINISHED"
   | "CANCELLED";
+
+export type TournamentResumableStatus = "REGISTRATION_OPEN" | "REGISTRATION_CLOSED" | "IN_PROGRESS";
 
 /** Payload de criação/edição de cidade (POST|PUT /cities). */
 export interface CityInput {
@@ -287,6 +384,9 @@ export interface TournamentCreateInput {
   name: string;
   description?: string;
   type: string;
+  modalityId?: number | null;
+  cityId?: number | null;
+  organizerId?: number;
   startDate: string;
   endDate: string;
   rules: TournamentRules;
@@ -594,7 +694,7 @@ export type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error
 
 export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
-export type StockMovementType = "IN" | "OUT" | "ADJUST";
+export type StockMovementType = "IN" | "OUT" | "ADJUST" | "RETURN" | "LOSS";
 
 /** Categoria ou marca do catálogo (ambas têm a mesma visão). */
 export interface StoreCatalogItem {
@@ -636,6 +736,14 @@ export interface StoreProduct {
   stockUnits: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StoreProductImage {
+  id: number;
+  url: string;
+  altText: string | null;
+  position: number;
+  variantId: number | null;
 }
 
 export interface InventoryRow {
@@ -876,6 +984,80 @@ export interface StoreOrderList {
   offset: number;
 }
 
+export type StoreReturnReason = "DEFECTIVE" | "WRONG_ITEM" | "NOT_AS_DESCRIBED" | "CHANGE_OF_MIND" | "OTHER";
+
+export type StoreReturnStatus =
+  | "REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "RECEIVED"
+  | "INSPECTED"
+  | "REFUND_RECORDED"
+  | "CLOSED";
+
+export interface StoreReturnPolicy {
+  enabled: boolean;
+  windowDays: number;
+  allowChangeOfMind: boolean;
+  updatedAt: string;
+}
+
+export interface StoreReturnItem {
+  id: number;
+  returnRequestId: number;
+  orderItemId: number;
+  quantityRequested: number;
+  quantityReceived: number;
+  quantityAccepted: number;
+  quantityRestocked: number;
+  inspectionNote: string | null;
+  productName: string;
+  sku: string;
+  variant: string | null;
+  variantId: number | null;
+  unitPrice: number;
+}
+
+export interface StoreReturnEvent {
+  id: number;
+  returnRequestId: number | null;
+  actorId: number | null;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface StoreReturnRequest {
+  id: number;
+  orderId: number;
+  orderNumber: string;
+  customerId: number;
+  reason: StoreReturnReason;
+  description: string;
+  status: StoreReturnStatus;
+  reviewedBy: number | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  carrier: string | null;
+  trackingCode: string | null;
+  receivedBy: number | null;
+  receivedAt: string | null;
+  inspectedBy: number | null;
+  inspectedAt: string | null;
+  refundAmount: number;
+  refundMethod: string | null;
+  refundReference: string | null;
+  refundNote: string | null;
+  refundedBy: number | null;
+  refundedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: StoreReturnItem[];
+  events: StoreReturnEvent[];
+}
+
 // ============================================================
 // MATCHES / MATCHMAKING — partidas, emparelhamento e logística
 // ============================================================
@@ -901,6 +1083,9 @@ export interface MatchSimple {
   matchDate: string;
   homeScore: number | null;
   awayScore: number | null;
+  homeAcceptedAt?: string | null;
+  awayAcceptedAt?: string | null;
+  resultValidationStatus?: MatchResultValidationStatus;
   homeTeamName: string;
   awayTeamName: string;
   fieldName: string | null;
@@ -1109,7 +1294,13 @@ export interface TournamentFixture {
   awayTeamId: number;
   /** LEAGUE | KNOCKOUT | GROUP_STAGE | ROUND_ROBIN | FRIENDLY */
   type: string;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  fieldId?: number | null;
   isPlayed: boolean;
+  isPublished?: boolean;
+  isCancelled?: boolean;
   homeScore?: number | null;
   awayScore?: number | null;
   createdAt?: string;
@@ -1119,6 +1310,58 @@ export interface TournamentFixture {
 export interface FixtureResultInput {
   homeScore: number;
   awayScore: number;
+}
+
+export interface FixtureUpdateInput {
+  homeScore?: number;
+  awayScore?: number;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  fieldId?: number | null;
+  isCancelled?: boolean;
+  isPublished?: boolean;
+  resultReason?: string;
+}
+
+export interface TournamentFixtureResultHistory {
+  id: number;
+  fixtureId: number;
+  tournamentId: number;
+  actorUserId: number;
+  previousHomeScore: number | null;
+  previousAwayScore: number | null;
+  homeScore: number;
+  awayScore: number;
+  reason: string;
+  createdAt: string;
+}
+
+export type TournamentIncidentType = "WITHDRAWAL" | "CONFLICT" | "CONTESTATION" | "OTHER";
+export type TournamentIncidentStatus = "OPEN" | "IN_REVIEW" | "RESOLVED";
+
+export interface TournamentIncident {
+  id: number;
+  tournamentId: number;
+  fixtureId: number | null;
+  type: TournamentIncidentType;
+  status: TournamentIncidentStatus;
+  title: string;
+  description: string;
+  resolutionNote: string | null;
+  reportedBy: number;
+  resolvedBy: number | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TournamentIncidentCreateInput {
+  tournamentId: number;
+  fixtureId?: number | null;
+  type: TournamentIncidentType;
+  title: string;
+  description: string;
 }
 
 /** Payload de geração de jogos (POST /tournament-fixtures/generate|regenerate). */
