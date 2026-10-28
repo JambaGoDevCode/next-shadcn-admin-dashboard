@@ -9,7 +9,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PlatformPayment } from "@/lib/api/finance-admin";
 import type { ConversionsOverview, MetricsOverview, StoreOverview } from "@/lib/api/types";
-import { formatKz, paymentStatusLabel, statusTone } from "@/lib/format";
+import { formatKz, paymentStatusLabel, plural, statusTone } from "@/lib/format";
 
 import type { LoadState } from "./load";
 
@@ -83,7 +83,7 @@ export function FinanceOverview({ metrics, conversions, store, payments }: Finan
           value={formatKz(pending.total)}
           hint={
             payments
-              ? `${pending.count} pagamento(ões) aguardam liquidação`
+              ? `${pending.count} ${plural(pending.count, "pagamento aguarda", "pagamentos aguardam")} liquidação`
               : "Sem dados: a API de pagamentos não respondeu"
           }
           failed={payments === null}
@@ -91,7 +91,11 @@ export function FinanceOverview({ metrics, conversions, store, payments }: Finan
         <Kpi
           label="Reembolsos"
           value={formatKz(refunded.total)}
-          hint={payments ? `${refunded.count} pagamento(ões) reembolsados` : "Sem dados de pagamentos"}
+          hint={
+            payments
+              ? `${refunded.count} ${plural(refunded.count, "pagamento reembolsado", "pagamentos reembolsados")}`
+              : "Sem dados de pagamentos"
+          }
           failed={payments === null}
         />
         <Kpi
@@ -110,7 +114,7 @@ export function FinanceOverview({ metrics, conversions, store, payments }: Finan
           value={formatKz(store.data?.revenue.total ?? 0)}
           hint={
             store.data
-              ? `${store.data.orders.paid} encomendas pagas · média ${formatKz(store.data.orders.averageValue)}`
+              ? `${store.data.orders.paid} ${plural(store.data.orders.paid, "encomenda paga", "encomendas pagas")} · média ${formatKz(store.data.orders.averageValue)}`
               : "Vendas de produtos (30 d)"
           }
           failed={store.failed}
@@ -220,7 +224,7 @@ export function FinanceOverview({ metrics, conversions, store, payments }: Finan
               <AlertDescription>
                 {pendingBookings === null
                   ? "Contagem de reservas pendentes indisponível."
-                  : `${pendingBookings} reserva(s) pendente(s) de confirmação nos últimos 30 dias.`}
+                  : `${pendingBookings} ${plural(pendingBookings, "reserva pendente", "reservas pendentes")} de confirmação nos últimos 30 dias.`}
               </AlertDescription>
             </Alert>
             <div className="flex flex-wrap gap-2">

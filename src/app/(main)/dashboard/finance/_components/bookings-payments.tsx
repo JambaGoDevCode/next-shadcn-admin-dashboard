@@ -25,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { PlatformPayment } from "@/lib/api/finance-admin";
 import type { Booking, Field } from "@/lib/api/types";
 import { type ExportDataset, exportDataset } from "@/lib/export";
-import { bookingStatusLabel, formatDateTime, formatKz, statusTone } from "@/lib/format";
+import { bookingStatusLabel, formatDateTime, formatKz, plural, statusTone } from "@/lib/format";
 import { listPaymentsAction } from "@/server/actions/finance-admin";
 import { listBookingsAction, listFieldsAction } from "@/server/actions/management";
 
@@ -170,7 +170,7 @@ export function BookingsPayments() {
       `Estado: ${statusFilter === "all" ? "todos" : bookingStatusLabel(statusFilter)} · Período: ${
         fromDate || "início"
       } a ${toDate || "hoje"}`,
-      `Total exportado: ${filtered.length} reserva(s) · receita activa ${formatKz(totals.revenue)}`,
+      `Total exportado: ${filtered.length} ${plural(filtered.length, "reserva", "reservas")} · receita activa ${formatKz(totals.revenue)}`,
       "A API não expõe o vínculo entre pagamentos e reservas (Payment não tem bookingId).",
     ],
     columns: [
@@ -210,7 +210,8 @@ export function BookingsPayments() {
               {loading ? "—" : formatKz(totals.revenue)}
             </div>
             <p className="mt-1 text-muted-foreground text-xs">
-              {totals.activeCount} reserva(s) activa(s) nos filtros actuais
+              {totals.activeCount} {plural(totals.activeCount, "reserva activa", "reservas activas")} nos filtros
+              actuais
             </p>
           </CardContent>
         </Card>
@@ -257,7 +258,7 @@ export function BookingsPayments() {
               <p className="text-muted-foreground text-sm">
                 {bookings === null && !error
                   ? "A consultar GET /bookings na peladeiro-api…"
-                  : `${filtered.length} reserva(s) · ${formatKz(totals.revenue)} em reservas activas`}
+                  : `${filtered.length} ${plural(filtered.length, "reserva", "reservas")} · ${formatKz(totals.revenue)} em reservas activas`}
               </p>
             </div>
             <CardAction className="flex items-center gap-2">
@@ -398,7 +399,8 @@ export function BookingsPayments() {
                 pageCount={pageCount}
                 total={filtered.length}
                 pageSize={PAGE_SIZE}
-                unit="reservas"
+                unit="reserva"
+                unitPlural="reservas"
                 onPageChange={setPage}
               />
             </>

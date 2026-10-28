@@ -9,6 +9,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { plural } from "@/lib/format";
 
 interface TablePaginationProps {
   /** Página atual, base 1. */
@@ -17,7 +18,10 @@ interface TablePaginationProps {
   /** Total de registos (para o texto "x–y de z"). */
   total: number;
   pageSize: number;
+  /** Unidade no singular. */
   unit?: string;
+  /** Unidade no plural; por omissão, `unit` + "s". */
+  unitPlural?: string;
   onPageChange: (page: number) => void;
 }
 
@@ -35,13 +39,15 @@ export function TablePagination({
   pageCount,
   total,
   pageSize,
-  unit = "registos",
+  unit = "registo",
+  unitPlural,
   onPageChange,
 }: TablePaginationProps) {
   const safeCount = Math.max(1, pageCount);
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
   const numbers = pageNumbers(page, safeCount);
+  const unitLabel = plural(total, unit, unitPlural ?? `${unit}s`);
 
   const goto = (event: React.MouseEvent<HTMLAnchorElement>, target: number) => {
     event.preventDefault();
@@ -52,7 +58,7 @@ export function TablePagination({
   return (
     <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
       <p className="text-muted-foreground text-sm">
-        {first}–{last} de {total} {unit}
+        {first}–{last} de {total} {unitLabel}
       </p>
       <Pagination className="mx-0 w-auto">
         <PaginationContent className="gap-1">

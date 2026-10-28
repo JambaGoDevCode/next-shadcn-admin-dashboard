@@ -24,6 +24,7 @@ import {
   orderStatusLabel,
   paymentMethodLabel,
   paymentStatusLabel,
+  plural,
   statusTone,
 } from "@/lib/format";
 import { listPaymentsAction, listStoreOrdersAction } from "@/server/actions/finance-admin";
@@ -256,7 +257,7 @@ export function ReportsWorkspace() {
       `Período: ${fromDate || "início"} a ${toDate || "hoje"} · Estado: ${
         status === "all" ? "todos" : (items.find((item) => item.statusKey === status)?.status ?? status)
       } · Pesquisa: ${search || "—"}`,
-      `Total exportado: ${filtered.length} registo(s) · ${formatKz(totalAmount)}`,
+      `Total exportado: ${filtered.length} ${plural(filtered.length, "registo", "registos")} · ${formatKz(totalAmount)}`,
       "Origem: peladeiro-api (módulo de pagamentos, reservas e loja).",
     ],
     columns: [
@@ -452,7 +453,8 @@ export function ReportsWorkspace() {
                 pageCount={pageCount}
                 total={filtered.length}
                 pageSize={PAGE_SIZE}
-                unit="registos"
+                unit="registo"
+                unitPlural="registos"
                 onPageChange={setPage}
               />
             </>

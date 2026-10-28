@@ -161,6 +161,101 @@ export type MatchDisputeResolutionInput =
   | { decision: "CORRECT"; homeScore: number; awayScore: number; resolutionNote: string }
   | { decision: "UPHOLD" | "DISMISS"; resolutionNote: string };
 
+export type SupportCaseType = "SUPPORT" | "REPORT" | "DISPUTE" | "OPERATIONAL_INCIDENT";
+export type SupportCaseStatus = "OPEN" | "IN_PROGRESS" | "WAITING" | "RESOLVED" | "CLOSED";
+export type SupportCasePriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type SupportCaseTargetType =
+  | "USER"
+  | "TEAM"
+  | "FIELD"
+  | "CONTENT"
+  | "MATCH"
+  | "BOOKING"
+  | "PAYMENT"
+  | "TOURNAMENT";
+export type SupportCaseActivityAction =
+  | "CREATED"
+  | "RESPONDED"
+  | "STATUS_CHANGED"
+  | "PRIORITY_CHANGED"
+  | "ASSIGNED"
+  | "CLASSIFICATION_CHANGED"
+  | "DUE_DATE_CHANGED"
+  | "RESOLVED"
+  | "CLOSED";
+
+export interface SupportCaseActivity {
+  id: number;
+  caseId: number;
+  actorUserId: number;
+  actorName?: string | null;
+  action: SupportCaseActivityAction;
+  field: string | null;
+  previousValue: string | null;
+  newValue: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface SupportCaseAssignee {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface SupportCase {
+  id: number;
+  type: SupportCaseType;
+  status: SupportCaseStatus;
+  priority: SupportCasePriority;
+  subject: string;
+  description: string;
+  classification: string | null;
+  targetType: SupportCaseTargetType | null;
+  targetId: string | null;
+  evidenceUrl: string | null;
+  createdBy: number;
+  assignedUserId: number | null;
+  dueAt: string | null;
+  resolutionNote: string | null;
+  resolvedBy: number | null;
+  resolvedAt: string | null;
+  closedBy: number | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  activities?: SupportCaseActivity[];
+}
+
+export interface SupportCaseFilters {
+  type?: SupportCaseType;
+  status?: SupportCaseStatus;
+  priority?: SupportCasePriority;
+  assignedUserId?: number;
+  history?: boolean;
+}
+
+export interface SupportCaseInput {
+  type: SupportCaseType;
+  priority?: SupportCasePriority;
+  subject: string;
+  description: string;
+  classification?: string | null;
+  targetType?: SupportCaseTargetType | null;
+  targetId?: string | null;
+  evidenceUrl?: string | null;
+  dueAt?: string | null;
+}
+
+export interface SupportCaseUpdate {
+  status?: SupportCaseStatus;
+  priority?: SupportCasePriority;
+  assignedUserId?: number | null;
+  classification?: string | null;
+  dueAt?: string | null;
+  resolutionNote?: string | null;
+}
+
 export interface MatchmakingSearchAttempt {
   id: number;
   teamId: number;

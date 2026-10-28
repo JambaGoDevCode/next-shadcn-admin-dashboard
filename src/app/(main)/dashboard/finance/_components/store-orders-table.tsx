@@ -28,6 +28,7 @@ import {
   orderStatusLabel,
   orderStatusTone,
   paymentStatusLabel,
+  plural,
   statusTone,
 } from "@/lib/format";
 import { listStoreOrdersAction } from "@/server/actions/finance-admin";
@@ -151,7 +152,7 @@ export function StoreOrdersTable() {
       `Gerado em ${new Date().toLocaleString("pt-PT")}`,
       `Estado: ${status === "all" ? "todos" : orderStatusLabel(status)} · Pesquisa: ${search || "—"}`,
       `Âmbito: ${scope === "all" ? "todas as encomendas da plataforma" : "apenas encomendas da sessão actual"}`,
-      `Total exportado: ${orderRows.length} encomenda(s)`,
+      `Total exportado: ${orderRows.length} ${plural(orderRows.length, "encomenda", "encomendas")}`,
     ],
     columns: [
       { header: "Encomenda", value: (order) => `${order.orderNumber} (#${order.id})`, width: 24 },
@@ -188,7 +189,7 @@ export function StoreOrdersTable() {
               <p className="text-muted-foreground text-sm">
                 {list === null && !error
                   ? "A consultar GET /store/orders na peladeiro-api…"
-                  : `${total} encomenda(s) no total`}
+                  : `${total} ${plural(total, "encomenda", "encomendas")} no total`}
               </p>
             </div>
             <CardAction className="flex items-center gap-2">
@@ -316,7 +317,8 @@ export function StoreOrdersTable() {
                 pageCount={pageCount}
                 total={total}
                 pageSize={PAGE_SIZE}
-                unit="encomendas"
+                unit="encomenda"
+                unitPlural="encomendas"
                 onPageChange={setPage}
               />
             </>

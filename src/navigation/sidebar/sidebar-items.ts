@@ -554,6 +554,43 @@ export const sidebarItems: NavGroup[] = [
           },
         ],
       },
+      {
+        id: "support-cases",
+        title: "Suporte e denúncias",
+        icon: MessageSquareWarning,
+        subItems: [
+          {
+            id: "support-requests",
+            title: "Pedidos de suporte",
+            url: "/dashboard/suporte-e-denuncias/pedidos",
+            icon: MessageSquare,
+          },
+          {
+            id: "support-reports",
+            title: "Denúncias",
+            url: "/dashboard/suporte-e-denuncias/denuncias",
+            icon: Flag,
+          },
+          {
+            id: "support-disputes",
+            title: "Disputas",
+            url: "/dashboard/suporte-e-denuncias/disputas",
+            icon: Gavel,
+          },
+          {
+            id: "support-incidents",
+            title: "Incidentes operacionais",
+            url: "/dashboard/suporte-e-denuncias/incidentes",
+            icon: TriangleAlert,
+          },
+          {
+            id: "support-history",
+            title: "Histórico de resolução",
+            url: "/dashboard/suporte-e-denuncias/historico",
+            icon: History,
+          },
+        ],
+      },
     ],
   },
   {
@@ -625,12 +662,6 @@ export const sidebarItems: NavGroup[] = [
             title: "Contas suspensas",
             url: "/dashboard/users/suspensas",
             icon: UserX,
-          },
-          {
-            id: "users-reports",
-            title: "Denúncias de utilizadores",
-            url: "/dashboard/users/denuncias",
-            icon: Flag,
           },
           {
             id: "users-history",

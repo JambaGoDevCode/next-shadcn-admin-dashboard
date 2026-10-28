@@ -33,7 +33,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PlatformPayment } from "@/lib/api/finance-admin";
 import { type ExportDataset, exportDataset } from "@/lib/export";
-import { formatDate, formatDateTime, formatKz, paymentMethodLabel, paymentStatusLabel, statusTone } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatKz,
+  paymentMethodLabel,
+  paymentStatusLabel,
+  plural,
+  statusTone,
+} from "@/lib/format";
 import { listPaymentsAction, refundPlatformPaymentAction } from "@/server/actions/finance-admin";
 
 import { ExportToolbar } from "./export-toolbar";
@@ -79,8 +87,8 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
   const [payments, setPayments] = useState<PlatformPayment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [_reloadKey, setReloadKey] = useState(0);
   const requestIdRef = useRef(0);
+  const isFirstLoadRef = useRef(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(variant === "refunds" ? "REFUNDED" : "all");
@@ -94,9 +102,9 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
   const [refundAmount, setRefundAmount] = useState("");
   const [refunding, setRefunding] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     const requestId = ++requestIdRef.current;
-    setLoading(true);
+    if (isFirstLoadRef.current) setLoading(true);
     setError(null);
 
     listPaymentsAction()
@@ -116,13 +124,18 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
         }
       })
       .finally(() => {
-        if (requestId === requestIdRef.current) setLoading(false);
+        if (requestId !== requestIdRef.current) return;
+        isFirstLoadRef.current = false;
+        setLoading(false);
       });
+  }, []);
 
+  useEffect(() => {
+    load();
     return () => {
       requestIdRef.current += 1;
     };
-  }, []);
+  }, [load]);
 
   const statusOptions = useMemo(
     () => [...new Set((payments ?? []).map((payment) => payment.status))].sort(),
@@ -173,7 +186,10 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
     };
   }, [filtered]);
 
-  const reload = useCallback(() => setReloadKey((value) => value + 1), []);
+  const reload = useCallback(() => {
+    isFirstLoadRef.current = false;
+    load();
+  }, [load]);
 
   const buildDataset = (): ExportDataset<PlatformPayment> => {
     const notes = [
@@ -182,7 +198,7 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
         methodFilter === "all" ? "todos" : paymentMethodLabel(methodFilter)
       }`,
       `Período: ${fromDate || "início"} a ${toDate || "hoje"} · Pesquisa: ${search || "—"}`,
-      `Total filtrado: ${formatKz(totals.all)} em ${filtered.length} transação(ões)`,
+      `Total filtrado: ${formatKz(totals.all)} em ${filtered.length} ${plural(filtered.length, "transação", "transações")}`,
       "Data derivada da referência PAY-<epoch>-<rand>: a tabela de pagamentos não tem coluna de data.",
     ];
     return {
@@ -337,7 +353,8 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
           pageCount={pageCount}
           total={filtered.length}
           pageSize={PAGE_SIZE}
-          unit="transações"
+          unit="transação"
+          unitPlural="transações"
           onPageChange={setPage}
         />
       </>
@@ -354,7 +371,7 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
               <p className="text-muted-foreground text-sm">
                 {payments === null && !error
                   ? "A consultar GET /payments na peladeiro-api…"
-                  : `${filtered.length} transação(ões) · ${formatKz(totals.all)}`}
+                  : `${filtered.length} ${plural(filtered.length, "transação", "transações")} · ${formatKz(totals.all)}`}
               </p>
             </div>
             <CardAction className="flex items-center gap-2">
@@ -519,7 +536,7 @@ export function PaymentsTable({ variant }: PaymentsTableProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Reembolsar o pagamento #{refundTarget?.id}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta operação altera o estado do pagamento para REembolsado (REFUNDED) na peladeiro-api, exige permissão
+              Esta operação altera o estado do pagamento para Reembolsado (REFUNDED) na peladeiro-api, exige permissão
               específica e é registada com o seu utilizador de sessão. Não pode ser desfeita na interface.
             </AlertDialogDescription>
           </AlertDialogHeader>
